@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MESH v0.6.1</title>
+<title>MESH v0.6.2</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -90,7 +90,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 .action-btn:disabled{opacity:0.3;cursor:not-allowed;}
 .danger-btn{padding:4px 10px;background:#180909;border:1px solid #5a1a1a;border-radius:3px;color:#c04040;font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;}
 .danger-btn:hover{background:#2a0808;}
-#log,#log-prep{height:100%;overflow-y:auto;display:flex;flex-direction:column-reverse;min-height:60px;max-height:160px;}
+#log,#log-prep{height:100%;overflow-y:auto;display:flex;flex-direction:column-reverse;min-height:80px;max-height:240px;}
 .ll{font-size:8px;line-height:1.5;padding:1px 0;color:#2a4a3a;}
 .lg{color:#40c060;}.lw{color:#ffaa20;}.lb{color:#ff4040;}.li{color:#40aaff;}.lx{color:#aa44ff;}.lc{color:#ffdd40;}.lp{color:#ffaa00;}
 /* SAVE SCREEN */
@@ -473,7 +473,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="ts-scanline"></div>
   <div class="ts-logo">MESH</div>
   <div class="ts-tagline">"All the nets that ever were, are, or will be make up the Mesh"</div>
-  <div class="ts-version">OS v0.6.1 — IDLE NETRUNNER</div>
+  <div class="ts-version">OS v0.6.2 — IDLE NETRUNNER</div>
   <div id="ts-content" class="ts-btns">
     <!-- filled by JS -->
   </div>
@@ -612,13 +612,13 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
           <button class="spd-btn" id="spd-4" onclick="setSpeed(4)">4×</button>
         </div>
       </div>
-      <div class="panel"><div class="ptitle">Programs</div><div id="prog-list"></div></div>
+      <div class="panel"><div class="ptitle" onclick="toggleProgList()" style="cursor:pointer;user-select:none" title="Click to collapse">Programs <span id="prog-toggle" style="float:right;font-size:9px;color:#2a5a2a">▾</span></div><div id="prog-list"></div></div>
       <div class="panel">
         <div class="ptitle">STORAGE <span id="run-ram-lbl" style="color:#40aaff"></span></div>
         <div class="ram-bar"><div class="ram-fill" id="run-ram-bar" style="width:0%"></div></div>
         <div id="run-files" style="margin-top:3px;"></div>
       </div>
-      <div class="panel" style="flex:1;min-height:60px;"><div class="ptitle">Log</div><div class="log-out" id="log-prep"></div></div>
+      <div class="panel" style="flex:1;min-height:80px;border-color:#1a3a1a;"><div class="ptitle" style="color:#40c060">Log</div><div class="log-out" id="log-prep"></div></div>
       <button class="refresh-btn" style="width:100%;margin-top:2px;display:none" id="jackout-btn" onclick="jackOut()">⏏ Jack Out</button>
     </div>
 
@@ -753,6 +753,8 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 <script src="js/achievements.js"></script>
 <script src="js/render.js"></script>
 <script src="js/quests.js"></script>
+<script src="js/story.js"></script>
+<script src="js/ascension.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

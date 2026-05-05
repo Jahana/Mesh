@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.6.1 \u2014 Help & Changes";
+  const title="MESH v0.6.2 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -431,6 +431,7 @@ function showTab(name){
   if(name==='char')renderCharacterTab();
   if(name==='net')renderNetTab();
   if(name==='story'&&typeof renderStoryTab==='function')renderStoryTab();
+  if(name==='net'&&typeof renderNetMap==='function')renderNetMap();
   if(name==='ach')renderAchievements();
   if(name==='stats')renderStats();
 }
@@ -816,6 +817,16 @@ function buyNetItem(type, id, cost, companyKey){
   renderNetMarket();
   if(typeof checkNetMarketPurchase==='function') checkNetMarketPurchase(companyKey);
   if(typeof autoSave==='function') autoSave();
+}
+
+
+function toggleProgList(){
+  const list = document.getElementById('prog-list');
+  const btn  = document.getElementById('prog-toggle');
+  if(!list) return;
+  const collapsed = list.style.display === 'none';
+  list.style.display = collapsed ? '' : 'none';
+  if(btn) btn.textContent = collapsed ? '▾' : '▸';
 }
 
 
@@ -1822,6 +1833,8 @@ function renderLog(){
   S.log.slice(0,35).forEach((l,i)=>{
     const d=document.createElement('div');
     d.className='ll '+(l.cls||'');
+    d.style.fontSize='8px';
+    d.style.padding='1px 0';
     const countSuffix=l.count>1?' x'+l.count:'';
     const tickPfx=(S.running&&i<3&&l.tick)?'<span style="color:#0d2a0d;font-size:7px">'+l.tick+'t </span>':'';
     d.innerHTML=tickPfx+'<span>'+l.msg+countSuffix+'</span>';

@@ -369,6 +369,17 @@ function jackOut(){addLog('⏏ Jack out','lw');finishRun(false,'jackout');}
 function finishRun(success,reason='complete'){
   S.running=false;S.combat=null;S.player.stalled=false;
   document.getElementById('combat-panel').classList.remove('active');
+  // SENSOR trace spike — active sensors add trace at exit
+  if((S._activeSensors||0)>0&&success){
+    const spike=S._activeSensors*20;
+    S.trace=Math.min(100,S.trace+spike);
+    addLog(`◉ ${S._activeSensors} sensor${S._activeSensors>1?'s':''} active — +${spike} trace`,'lw');
+  }
+  // SERVER exit bonus — clean exit grants pending bonus
+  if((S._serverBonus||0)>0&&success&&S.alert===0){
+    S.cred+=S._serverBonus;
+    addLog(`▣ SERVER exit bonus: +${S._serverBonus}₵ (clean exit)`,'lg');
+  }
   let bdPos=null;
   for(let r=0;r<S.rows;r++)for(let c=0;c<S.cols;c++){if(S.grid[r]?.[c]?.backdoor)bdPos={r,c};}
   S.backdoorCell=bdPos;
@@ -495,7 +506,7 @@ function finishRun(success,reason='complete'){
     S.storage=S.storage.filter(f=>!(f.type==='DISPLAY'&&f.bonusCred));
     addLog(`▣ GPU feeds: +${gpuCred}₵`,'lc');
   }
-  S.traceCarry=Math.floor(S.trace*0.10);
+  S.traceCarry = parseFloat(Math.max(0, (success ? S.trace*0.30 : S.trace*0.70)*0.85).toFixed(2)); // 30/70 carry, 15% decay
   if(!S.stats)S.stats={};
   if(success){S.stats.runsCompleted=(S.stats.runsCompleted||0)+1;}
   else{S.stats.runsFailed=(S.stats.runsFailed||0)+1;}
@@ -551,6 +562,7 @@ function finishRun(success,reason='complete'){
       if(ns){
           markNodeComplete(S.mesh.activeNodeAddr);
           addLog(`◈ Node ${S.mesh.activeNodeAddr} complete`,'lg');
+          if(typeof checkAscensionTrigger==='function') checkAscensionTrigger();
           if(typeof onQuestNodeComplete==='function'){ const qNs=typeof currentNetState==='function'?currentNetState():null; const _qV=parseInt(S.mesh.activeNodeAddr,16);const qNode=qNs?.layout?.[_qV&0xF]?.[_qV>>4]; if(typeof onQuestNodeComplete==='function') onQuestNodeComplete(qNode?.nodeType,typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0,S.mesh.activeNodeAddr); }
           // Check for FF completion — triggers uplift/travel
           if(S.mesh.activeNodeAddr==='FF'){
@@ -588,7 +600,9 @@ function finishRun(success,reason='complete'){
     S.mesh.activeNodeAddr = null;
   }
   generateBoard();renderTopBar();autoSave();
+  if(typeof saveTraitCpuState==='function') saveTraitCpuState();
   if(typeof checkQuestTriggers==='function') checkQuestTriggers();
+  if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
   // Update net tab if active
   if(document.getElementById('tab-net-content')?.classList.contains('active')&&typeof renderNetTab==='function') renderNetTab();
   // Show run summary, then return to net map (or board for non-net runs)

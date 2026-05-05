@@ -471,7 +471,7 @@ function updateLockedBanner(){
 
 const mkState=()=>({
   cred:500,level:1,xp:0,xpPool:0,prestige:0,
-  rep:{corp:0,crim:0,anarch:0},
+  rep:{corp:0,crim:0,anarch:0,neutral:0,gov:0,ai:0},
   hardware:'haas_common',ownedHW:['haas_common'], // Hexfield Common starter deck
   inventory:[],installed:[],
   crafting:[],

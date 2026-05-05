@@ -198,6 +198,8 @@ function resolveDatastoreAction(cell){
         const _dst=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
         onQuestNodeComplete('DATASTORE',_dst,null);
       }
+      // 15% chance: drop a lore fragment
+      if(Math.random()<0.15&&typeof recordDatastoreLore==='function') recordDatastoreLore();
     }
     return;
   }
@@ -366,6 +368,179 @@ function handleNodeArrival(cell){
     addLog(`⬟ COP [${cell.r},${cell.c}]: destroyed — permanently offline`,'lg');
   }
 
+  // RELAY — reveals cells in a radius, reveals patrols, stacks with CPU
+  if(cell.nodeType==='RELAY'&&!cell.relayDone){
+    cell.relayDone=true;
+    const radius=2;
+    let revealed=0;
+    for(let dr=-radius;dr<=radius;dr++) for(let dc=-radius;dc<=radius;dc++){
+      const nc=S.grid[cell.r+dr]?.[cell.c+dc];
+      if(nc&&!nc.revealed){ nc.revealed=true; revealed++; }
+      if(nc&&nc.ice)nc.iceRevealed=true;
+      if(nc&&nc.trap&&!nc.trapTriggered)nc.trapRevealed=true;
+    }
+    // Also freeze nearest patrol for 5 ticks
+    if(S.patrols?.length) S.patrols[0]._frozenTicks=(S.patrols[0]._frozenTicks||0)+5;
+    addLog(`⇢ RELAY [${cell.r},${cell.c}]: ${revealed} cells mapped, ICE revealed in radius`,'lg');
+    renderGrid();
+  }
+
+  // PROXY — reroutes patrols away from a row/column for this run
+  if(cell.nodeType==='PROXY'&&!cell.proxyDone){
+    cell.proxyDone=true;
+    S._proxyRows=S._proxyRows||new Set();
+    S._proxyCols=S._proxyCols||new Set();
+    S._proxyRows.add(cell.r);
+    S._proxyCols.add(cell.c);
+    addLog(`⬭ PROXY [${cell.r},${cell.c}]: patrols rerouted from row ${cell.r} and col ${cell.c}`,'lg');
+  }
+
+  // FIREWALL — raises alert proportional to strength unless broken
+  if(cell.nodeType==='FIREWALL'&&!cell.firewallTripped){
+    cell.firewallTripped=true;
+    const fwStr=cell.firewallStr||iceStr('BARRIER',curTier());
+    const breakerBonus=(S._cpuBoost||0)+(typeof charBreakerBonus==='function'?charBreakerBonus():0);
+    const installed=S.installed||[];
+    const breakerStr=installed.reduce((mx,iid)=>{
+      const it=S.inventory.find(x=>x.instId===iid);
+      const d=it?pdef(it.defId):null;
+      return d?.cat==='breaker'?Math.max(mx,(d.str||0)+breakerBonus):mx;
+    },0);
+    if(breakerStr>=fwStr){
+      addLog(`▣ FIREWALL [${cell.r},${cell.c}]: bypassed (STR ${breakerStr} vs ${fwStr})`,'lg');
+    } else {
+      const excess=fwStr-breakerStr;
+      addPressure(excess*PRESSURE_PER_ALERT*0.3);
+      addLog(`▣ FIREWALL [${cell.r},${cell.c}]: insufficient STR (${breakerStr} vs ${fwStr}) — +${Math.floor(excess*PRESSURE_PER_ALERT*0.3)} pressure`,'lw');
+    }
+  }
+
+  // ROUTER — reduces all ICE STR by 1 for the run, reveals patrol waypoints
+  if(cell.nodeType==='ROUTER'&&!cell.routerDone){
+    cell.routerDone=true;
+    S._routerHacked=(S._routerHacked||0)+1;
+    addLog(`⇌ ROUTER [${cell.r},${cell.c}]: network rerouted — all ICE STR -${S._routerHacked} this run`,'lg');
+    // Reveal patrol paths
+    if(S.patrols?.length) S.patrols.forEach(p=>{
+      if(p.path) p.path.forEach(([pr,pc])=>{ const nc=S.grid[pr]?.[pc]; if(nc)nc.revealed=true; });
+    });
+    renderGrid();
+  }
+
+  // SENSOR — register as active threat; spikes trace at exit if not disabled
+  if(cell.nodeType==='SENSOR'&&!cell.sensorDisabled){
+    if(!cell.sensorVisited){
+      cell.sensorVisited=true;
+      S._activeSensors=(S._activeSensors||0)+1;
+      addLog(`◉ SENSOR [${cell.r},${cell.c}]: active — disable to prevent trace spike at exit`,'lw');
+    } else {
+      // Re-visit: attempt to disable
+      cell.sensorDisabled=true;
+      S._activeSensors=Math.max(0,(S._activeSensors||1)-1);
+      addLog(`◉ SENSOR [${cell.r},${cell.c}]: disabled — trace spike prevented`,'lg');
+    }
+  } else if(cell.nodeType==='SENSOR'&&cell.sensorDisabled){
+    addLog(`◉ SENSOR [${cell.r},${cell.c}]: already disabled`,'');
+  }
+
+  // SERVER — generates cred per tick while adjacent; bonus on clean exit
+  if(cell.nodeType==='SERVER'&&!cell.serverTapped){
+    cell.serverTapped=true;
+    const serverVal=Math.floor(rnd(20,60)*(0.5+curTier()*0.3));
+    S.cred+=serverVal;
+    S._serverBonus=(S._serverBonus||0)+Math.floor(serverVal*0.5); // stored for exit bonus
+    addLog(`▣ SERVER [${cell.r},${cell.c}]: tapped — +${serverVal}₵, +${Math.floor(serverVal*0.5)}₵ exit bonus pending`,'lg');
+    renderTopBar();
+  }
+
+  // NEXUS — completing this also completes a linked secondary cell's objective
+  if(cell.nodeType==='NEXUS'&&!cell.nexusDone){
+    cell.nexusDone=true;
+    const linkedId=cell.nexusLink;
+    if(linkedId){
+      const linked=S.grid.flat().find(c=>c?.id===linkedId);
+      if(linked&&!linked.visited){
+        linked.visited=true;
+        linked.nexusCompleted=true;
+        // Auto-complete any objective targeting the linked cell
+        S.active.forEach(ct=>ct.objectives.forEach(obj=>{
+          if(obj.targetNodeId===linkedId&&!obj.done){ obj.done=true; addLog(`⊛ NEXUS: linked node auto-completed`,'lg'); }
+        }));
+        addLog(`⊛ NEXUS [${cell.r},${cell.c}]: link resolved — remote node completed`,'lg');
+        renderGrid();
+      }
+    } else {
+      addLog(`⊛ NEXUS [${cell.r},${cell.c}]: isolated (no link)`,'');
+    }
+  }
+
+  // BLACKSITE — extreme rewards, always ICE-guarded, partially hidden
+  if(cell.nodeType==='BLACKSITE'&&!cell.blacksiteDone){
+    cell.blacksiteDone=true;
+    if(cell.ice){
+      addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: ICE-locked — breach ICE first`,'lw');
+    } else {
+      const bsVal=Math.floor(rnd(100,300)*(0.5+curTier()*0.5));
+      const f={id:uid(),type:'CORPDATA',identified:true,encrypted:false,preloaded:false,credValue:bsVal};
+      tryStoreFile(f,`◼ BLACKSITE [${cell.r},${cell.c}]`);
+      // Chance to drop blueprint
+      if(Math.random()<0.4) tryDropBlueprint(`BLACKSITE [${cell.r},${cell.c}]`);
+      // Sensor spike — blacksite access always triggers sensors
+      S._activeSensors=(S._activeSensors||0)+1;
+      addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: data extracted — sensors alerted!`,'lp');
+      addPressure(PRESSURE_PER_ALERT*0.5);
+    }
+  }
+
+  // LAB — partial blueprint progress
+  if(cell.nodeType==='LAB'&&!cell.labDone){
+    cell.labDone=true;
+    if(!S._labProgress) S._labProgress={};
+    const eligible=typeof blueprintsEligibleToDrop==='function'?blueprintsEligibleToDrop():[];
+    if(eligible.length){
+      const bp=pick(eligible);
+      S._labProgress[bp.id]=(S._labProgress[bp.id]||0)+1;
+      if(S._labProgress[bp.id]>=2){
+        // Two lab visits to same BP = earn it
+        earnBlueprint(bp.id,`LAB [${cell.r},${cell.c}]`);
+        delete S._labProgress[bp.id];
+      } else {
+        addLog(`⚗ LAB [${cell.r},${cell.c}]: fragment collected — ${bp.name} ${S._labProgress[bp.id]}/2`,'lg');
+      }
+    } else {
+      const labCred=rnd(20,50);
+      S.cred+=labCred;
+      addLog(`⚗ LAB [${cell.r},${cell.c}]: all blueprints discovered — +${labCred}₵ research grant`,'lg');
+      renderTopBar();
+    }
+  }
+
+
+  // VAULT — locked high-value datastore; requires Decrypt program
+  if(cell.nodeType==='VAULT'&&!cell.vaultOpened){
+    const hasDecrypt=getByEffect('decrypt').length>0;
+    if(!hasDecrypt){
+      addLog(`◆ VAULT [${cell.r},${cell.c}]: encrypted — Decrypt program required`,'lw');
+      // Still stall briefly to show the message
+    } else {
+      cell.vaultOpened=true;
+      S._vaultOpened=true;
+      // Generate high-value files
+      const vaultFiles=[];
+      for(let i=0;i<rnd(2,4);i++){
+        const types=['CREDPACK','CORPDATA','KEYFILE'];
+        const t=types[Math.floor(Math.random()*types.length)];
+        const mult=1.5+curTier()*0.4;
+        vaultFiles.push({id:uid(),type:t,identified:true,encrypted:false,preloaded:false,
+          credValue:Math.floor((FILE_VALUE[t]||40)*mult)});
+      }
+      vaultFiles.forEach(f=>tryStoreFile(f,`◆ VAULT [${cell.r},${cell.c}]`));
+      if(Math.random()<0.25) tryDropBlueprint(`VAULT [${cell.r},${cell.c}]`);
+      if(typeof unlockAch==='function') unlockAch('vault_opened');
+      addLog(`◆ VAULT [${cell.r},${cell.c}]: decrypted — ${vaultFiles.length} files extracted`,'lg');
+    }
+  }
+
   // DATASTORE — begin queued per-file processing (player stays until done)
   if(cell.nodeType==='DATASTORE'&&!cell.scanned&&cell.files?.length){
     cell.scanned=false; // will be set true when all files processed
@@ -388,6 +563,7 @@ function handleNodeArrival(cell){
       const _dst2=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
       onQuestNodeComplete('DATASTORE',_dst2,null);
     }
+    if(Math.random()<0.08&&typeof recordDatastoreLore==='function') recordDatastoreLore(); // lower chance for empty nodes
   }
 }
 
@@ -436,6 +612,63 @@ function autoDoObj(cell,ct,obj){
     }else addLog('Need Intercept program installed for display contract','lw');
   }
   else if(a==='destroy'){cell.destroyed=true;completeObj(ct,obj);}
+  // ── v0.6.2 new verb handlers ──────────────────────────────────────────
+  else if(a==='corrupt'){
+    // Degrade all files on node by 50%
+    if(cell.files) cell.files.forEach(f=>{ f.credValue=Math.floor((f.credValue||0)*0.5); f.corrupted=true; });
+    addLog(`⚡ CORRUPT [${cell.r},${cell.c}]: all files degraded`,'lw');
+    completeObj(ct,obj);
+  }
+  else if(a==='clone'){
+    // Copy file without deleting — store copy in RAM
+    if(obj.targetFile){
+      const clone={...obj.targetFile,id:uid(),preloaded:false,contractTarget:false};
+      tryStoreFile(clone,`◉ CLONE [${cell.r},${cell.c}]`);
+    }
+    completeObj(ct,obj);
+  }
+  else if(a==='burn'){
+    // Destroy node completely — high trace spike but grants bonus cred
+    cell.destroyed=true;
+    if(cell.files) cell.files.forEach(f=>{ if(f.credValue>0) tryStoreFile({...f,id:uid(),preloaded:false},`◼ BURN [${cell.r},${cell.c}]`); });
+    cell.files=[];
+    addPressure(PRESSURE_PER_ALERT*0.4);
+    addLog(`◼ BURN [${cell.r},${cell.c}]: node destroyed — data extracted`,'lw');
+    completeObj(ct,obj);
+  }
+  else if(a==='surveil'){
+    // Plant a watcher — reduces COP ping frequency for the run
+    cell.surveilled=true;
+    S._surveilled=(S._surveilled||0)+1;
+    addLog(`◉ SURVEIL [${cell.r},${cell.c}]: watcher planted — COP pings reduced`,'lg');
+    completeObj(ct,obj);
+  }
+  else if(a==='route'){
+    // Same as ROUTER node effect — reduce ICE STR globally
+    S._routerHacked=(S._routerHacked||0)+1;
+    addLog(`⇌ ROUTE [${cell.r},${cell.c}]: traffic rerouted — ICE STR -${S._routerHacked}`,'lg');
+    completeObj(ct,obj);
+  }
+  else if(a==='trace_back'){
+    // Identify trace source — reduce current trace by 20
+    S.trace=Math.max(0,parseFloat((S.trace-20).toFixed(2)));
+    addLog(`⊙ TRACE_BACK [${cell.r},${cell.c}]: source identified — trace -20`,'lg');
+    completeObj(ct,obj);
+  }
+  else if(a==='harvest'){
+    // Extract research value — blueprint progress or cred
+    if(typeof tryDropBlueprint==='function'&&Math.random()<0.3) tryDropBlueprint(`HARVEST [${cell.r},${cell.c}]`);
+    else { const hv=Math.floor(rnd(30,80)*(0.5+curTier()*0.3)); S.cred+=hv; addLog(`⚗ HARVEST [${cell.r},${cell.c}]: +${hv}₵`,'lg'); renderTopBar(); }
+    completeObj(ct,obj);
+  }
+  else if(a==='intercept_relay'||a==='display'){
+    const ic=getByEffect('intercept');
+    if(ic.length||a==='intercept_relay'){
+      const f={id:uid(),type:'DISPLAY',identified:true,encrypted:false,preloaded:false,bonusCred:rnd(30,80)};
+      f.credValue=f.bonusCred; tryStoreFile(f,`⇢ RELAY/GPU [${cell.r},${cell.c}]`);
+      cell.gpuDone=true; completeObj(ct,obj);
+    } else addLog('Need Intercept program for display/relay contract','lw');
+  }
   renderRunRAM();renderRunContracts();
 }
 

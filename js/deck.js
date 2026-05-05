@@ -45,7 +45,8 @@ function tickBM(){
 function buyBMItem(bmId){
   initBMRotation();
   const item=S._bmRotation.find(x=>x.id===bmId);if(!item)return;
-  const discountMult=S._neutralLegend?0.8:1.0;
+  const _bmTrait=typeof traitBmCostMult==='function'?traitBmCostMult():1;
+  const discountMult=(S._neutralLegend?0.8:1.0)*_bmTrait;
   const price=Math.floor((item.baseCost||5000)*discountMult);
   if(S.cred<price){addLog(`Need ${price.toLocaleString()}₵`,'lw');return;}
   S.cred-=price;

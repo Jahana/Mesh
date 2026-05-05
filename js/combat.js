@@ -87,7 +87,8 @@ function startCombat(cell){
 function resolveCombatRound(){
   if(!S.combat)return;const c=S.combat;c.round++;
   const overload=S._overloadActive?1:0;
-  const dmg=Math.min(c.iceStr,c.breakerStr+overload);c.iceStr=Math.max(0,c.iceStr-dmg);
+  const _traitDmg=typeof traitCombatDamageBonus==='function'?traitCombatDamageBonus():0;
+  const dmg=Math.min(c.iceStr,c.breakerStr+overload+_traitDmg);c.iceStr=Math.max(0,c.iceStr-dmg);
   c._totalDmgDealt=(c._totalDmgDealt||0)+dmg;
   // Only log round detail in first 2 rounds or when ICE is about to fall
   if(c.round<=2||c.iceStr<=c.breakerStr){

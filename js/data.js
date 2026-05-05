@@ -1,4 +1,4 @@
-// MESH v0.6.1 — data.js
+// MESH v0.6.2 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -213,6 +213,13 @@ const NODE_DEF={
   FIREWALL: {icon:'▣',label:'FWALL',   color:'#ff4040', desc:'Raises alert unless breaker STR exceeds firewall level.'},
   TERMINAL: {icon:'⌨',label:'TERM',    color:'#80ff40', desc:'Reveals all COP locations and silences nearest one.'},
   ARCHIVE:  {icon:'◎',label:'ARCH',    color:'#ffa040', desc:'Historical data — sells for cred at exit, always identified.'},
+  // v0.6.2 additions
+  ROUTER:   {icon:'⇌',label:'ROUT',    color:'#40ddff', desc:'Network hub. Reduces all ICE STR by 1 for run. Reveals patrol paths.'},
+  SENSOR:   {icon:'◉',label:'SENS',    color:'#ff6688', desc:'Early warning node. If not disabled, +20 trace spike at exit.'},
+  SERVER:   {icon:'▣',label:'SERV',    color:'#aaffdd', desc:'Active host. Generates cred per tick while adjacent. Bonus on clean exit.'},
+  NEXUS:    {icon:'⊛',label:'NEXUS',  color:'#ddaaff', desc:'Network nexus. Visiting completes a linked secondary node.'},
+  BLACKSITE:{icon:'◼',label:'BSITE',  color:'#ff2020', desc:'Dark node. Hidden until adjacent. High rewards, always ICE-guarded.'},
+  LAB:      {icon:'⚗',label:'LAB',     color:'#88ffaa', desc:'Research node. Grants partial blueprint progress.'},
 };
 
 // Hunter ICE varieties — assigned on spawn
@@ -335,6 +342,15 @@ const CV={
   access:   {nodeTypes:['VAULT'],              action:'collect'},
   terminal: {nodeTypes:['TERMINAL'],           action:'activate'},
   archive:  {nodeTypes:['ARCHIVE'],            action:'collect'},
+  // v0.6.2 additions
+  intercept_relay:{nodeTypes:['RELAY','GPU'],    action:'display'},
+  surveil:  {nodeTypes:['SENSOR'],               action:'activate'},
+  route:    {nodeTypes:['ROUTER'],               action:'activate'},
+  corrupt:  {nodeTypes:['DATASTORE','SERVER'],   action:'modify'},
+  clone:    {nodeTypes:['DATASTORE'],            action:'collect'},
+  burn:     {nodeTypes:['BLACKSITE','DATASTORE'],action:'collect_delete'},
+  trace_back:{nodeTypes:['TERMINAL','ROUTER'],   action:'activate'},
+  harvest:  {nodeTypes:['SERVER','LAB'],         action:'collect'},
 };
 
 // Faction contract verb pools by tier
@@ -876,12 +892,14 @@ const iceStr=(t,tier)=>{
   const anarch = S._anarchBonus || 0;
   // In a net node: scale by mesh distance for faster/harsher ramp
   if(S.mesh?.currentNet){
+    const routerReduction = S._routerHacked || 0;
     const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
     // +1 STR per 3 distance units, with extra multiplier past key thresholds
     const distBonus = Math.floor(dist / 3);
     const glitchBonus = dist >= 16 ? Math.floor((dist - 16) / 8) : 0;   // extra past glitch
     const deepBonus   = dist >= 64 ? Math.floor((dist - 64) / 16) : 0;  // extra past static
-    return Math.max(1, base + distBonus + glitchBonus + deepBonus - anarch);
+    const ascMult = typeof ascensionDifficulty==='function'?ascensionDifficulty():1;
+    return Math.max(1, Math.round((base + distBonus + glitchBonus + deepBonus - anarch - routerReduction)*ascMult));
   }
   // Outside net: use level-based tier (firmware tutorial, legacy)
   return Math.max(1, base + Math.max(0,tier-1) + (tier>=8?Math.floor((tier-7)/2):0) - anarch);
