@@ -173,10 +173,10 @@ function checkRunAchievements(summary){
   if(ct&&summary.conditionMet&&ct.condition==='speed')unlockAch('speedrunner');
 
   // Full integrity
-  if(intLeft>=iMax)unlockAch('untouchable');
+  if(intLeft>=iMax&&intLeft>0)unlockAch('untouchable');
 
   // No damage at all (check stats, not just final integrity)
-  if((S.stats?.totalDamageReceived||0)===0||(summary.damageThisRun||0)===0)unlockAch('no_damage');
+  if((summary.damageThisRun||0)===0)unlockAch('no_damage');
 
   // Data hoarder — all non-preloaded RAM slots filled
   const downloaded=summary.dsFiles||[];
@@ -216,10 +216,10 @@ function checkRunAchievements(summary){
   if((S._iceEncountered||new Set()).size>=Math.min(8,baseIceTypes.length))unlockAch('all_ice');
 
   // COP silence count
-  if((S._copsSilencedThisRun||0)>=3) unlockAch('cop_whisperer');
+  if((summary.copsSilenced||S._copsSilencedThisRun||0)>=3) unlockAch('cop_whisperer');
 
   // ICE defeated count
-  if((S._iceBreachedRun||0)>=10) unlockAch('ice_breaker');
+  if((summary.iceBreachedRun||S._iceBreachedRun||0)>=10) unlockAch('ice_breaker');
 
   // Full storage
   if((S.storage||[]).length>=storageMax()) unlockAch('full_storage');
@@ -227,16 +227,17 @@ function checkRunAchievements(summary){
   // Silent exit — GREEN the whole run
   if(!S._yellowAlertHit&&!S._redAlertHit) unlockAch('silent_exit');
 
-  // Speed — under 60 real seconds
-  if(summary.realMs && summary.realMs < 60000) unlockAch('speed_demon');
-  if(summary.realMs && summary.realMs < 30000) unlockAch('speed_500ms');
+  // Speed — real time
+  const _ms = summary.realMs || 0;
+  if(_ms>0 && _ms < 60000) unlockAch('speed_demon');
+  if(_ms>0 && _ms < 30000) unlockAch('speed_500ms');
 
   // Single-run cred
-  if((summary.cred||0) >= 10000) unlockAch('ten_k_cred');
-  if((summary.cred||0) >= 50000) unlockAch('fifty_k_cred');
+  if((summary.runCred||summary.cred||0) >= 10000) unlockAch('ten_k_cred');
+  if((summary.runCred||summary.cred||0) >= 50000) unlockAch('fifty_k_cred');
 
   // Contracts in one run
-  if((summary.contracts||0) >= 5) unlockAch('five_contracts');
+  if((summary.contracts||0) >= 5 || (summary.runCts||0) >= 5) unlockAch('five_contracts');
 
   // No programs installed
   if((S.installed||[]).length === 0) unlockAch('no_programs');

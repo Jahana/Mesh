@@ -1,4 +1,4 @@
-// MESH v0.5.4 — data.js
+// MESH v0.6 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -857,7 +857,7 @@ const hwdef=()=>HARDWARE.find(h=>h.id===S.hardware);
 const ramUsed=()=>S.installed.reduce((a,iid)=>{const it=S.inventory.find(x=>x.instId===iid);return a+(it?pdef(it.defId)?.mem||0:0);},0);
 const ramMax=()=>(hwdef()?.ram||8)+attachEffect('ram')+(typeof charRamBonus==='function'?charRamBonus():0);
 const storageMax=()=>(hwdef()?.storage||8)+attachEffect('storage');
-const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+S.prestige+attachEffect('integrity')-(S.permIntLoss||0)+(typeof charIntBonus==='function'?charIntBonus():0));
+const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+attachEffect('integrity')-(S.permIntLoss||0)+(typeof charIntBonus==='function'?charIntBonus():0));
 const curTier=()=>levelToTier(S.level);
 const prestigeThresholds=[20,40,60,80,100];
 const nextPrestigeLevel=()=>prestigeThresholds.find(t=>t>S.level-S.prestige*20)||null;

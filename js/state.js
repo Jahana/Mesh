@@ -157,9 +157,32 @@ function autoPickNextNode(){
   }
   if(!accessible.length) return null; // all done or blocked
 
-  // Always check if FF itself is accessible — if so, always go there
+  // Always check if FF itself is accessible — if so, always go there (unless quest blocks it)
   const ffNode = accessible.find(n => n.addr === 'FF');
-  if(ffNode) return 'FF';
+  // Never take FF if quest blocks it, OR if clear_net step needs us in a different dist zone
+  const _ffBlocked = (typeof questAutorunBlockFF==='function'&&questAutorunBlockFF()) || (typeof questClearNetDistOk==='function'&&!questClearNetDistOk());
+  if(ffNode && !_ffBlocked) return 'FF';
+
+  // Quest override: prioritize certain node types
+  const questNodeType = typeof questAutorunPriorityNodeType==='function'?questAutorunPriorityNodeType():null;
+  if(questNodeType){
+    const typed = accessible.filter(n=>ns.layout?.[n.row]?.[n.col]?.nodeType===questNodeType);
+    if(typed.length) return typed[Math.floor(Math.random()*typed.length)].addr;
+  }
+
+  // Quest faction preference: sort nodes by faction match
+  const questFac = typeof questAutorunTargetFaction==='function' ? questAutorunTargetFaction() : null;
+  if(questFac && ns.companies){
+    const factionNodes = accessible.filter(n => {
+      if(ns.completedNodes.includes(n.addr)) return false;
+      const companyFac = typeof nodeFaction==='function' ? nodeFaction(n.col, n.row) : null;
+      return companyFac === questFac;
+    });
+    if(factionNodes.length) {
+      factionNodes.sort((a,b)=>(b.col+b.row)-(a.col+a.row));
+      return factionNodes[0].addr;
+    }
+  }
 
   // 60%: pick node that maximises progress toward FF (highest col+row)
   if(Math.random() < 0.6){
@@ -188,7 +211,6 @@ function autoApplyLoadout(contract){
 }
 
 function launchAutoNetRun(){
-  // Called from countdown when in a net and autorun is on
   if(!S.mesh?.currentNet || !_autoRunEnabled) return false;
   const addr = autoPickNextNode();
   if(!addr){
@@ -231,9 +253,16 @@ function autoUpliftTravel(){
 
   while(queue.length > 0){
     // Score candidates: 60% deeper, 30% lateral, 10% toward 0:0
-    // Use a random roll per-candidate so each traversal has natural variation
+    // If a quest clear_net step is active, score toward the target dist range instead
+    const _questTgtDist = typeof questAutorunTargetDist==='function' ? questAutorunTargetDist() : null;
+    const _questStep = typeof activeQuestStep==='function' ? activeQuestStep() : null;
     function directionScore(n){
       const nDist = typeof meshDistance==='function' ? meshDistance(n.x,n.y) : 0;
+      if(_questTgtDist && _questStep?.type==='clear_net'){
+        // Score by closeness to target range midpoint
+        const mid = (_questTgtDist.min + _questTgtDist.max) / 2;
+        return Math.abs(nDist - mid); // lower = closer to target = preferred
+      }
       const roll = Math.random();
       if(roll < 0.60) return -nDist;      // 60%: prefer deeper (higher dist = lower score)
       else if(roll < 0.90) return 0;      // 30%: lateral (neutral)
@@ -283,6 +312,8 @@ function autoUpliftTravel(){
   const deeper = meshDistance(best.x,best.y) > curDist;
   addLog(`AUTO: Uplifting to net ${nk} (dist ${bestDist}${deeper?' — going deeper':''})…`,'lp');
   S._pendingUpliftTravel = false;
+  S._autoTravelCount=(S._autoTravelCount||0)+1;
+  if(S._autoTravelCount>=10&&typeof unlockAch==='function') unlockAch('auto_travel');
 
   // Cleared nets do not auto-enter — just show the net map
   // (travelToNet auto-enters only if FF not cleared, which is guaranteed here)
@@ -466,6 +497,8 @@ const mkState=()=>({
   _cpuVisits:0, _actionTickMod:0, _overloadActive:false,
   _intelBought:false, _mfrPerk:{},
   achievements:{},
+  loreLog:[], // [{id, title, flavor, mechanics, footer, meshDist, netKey, ts}]
+  quests:null, // initialized by initQuests()
   charStats:{neural_buffer:0,reflex:0,stealth:0,integrity:0,trace_resist:0,intrusion:0},
   mesh: null,   // initialized on first jack-in or new game
   world: null,  // real world state

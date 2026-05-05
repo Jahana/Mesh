@@ -1,4 +1,4 @@
-// MESH v0.5.4 — main.js
+// MESH v0.6 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -115,7 +115,8 @@ function gameTick(ts){
 
   // COP trace pings — every 25 ticks
   if(S.tick%25===0)tickCOPPings();
-  if(S.prestige>=9&&S.tick%10===0)tickCOPRepair();
+  const _archDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+  if(_archDist>=128&&S.tick%10===0)tickCOPRepair(); // Architect ICE only in deep mesh
 
   // Action queue
   if(S.actionQueue.length){
@@ -144,11 +145,14 @@ function gameTick(ts){
 
   // Render
   if(S.tick%2===0)renderGrid();
-  if(S.tick%3===0)renderTopBar();
+  if(S.tick%3===0){renderTopBar();if(typeof renderQuestStatus==='function')renderQuestStatus();}
+  if(S.tick%30===0&&typeof questTick==='function') questTick();
   if(S.tick%5===0){renderRunner();renderPrograms();renderRunRAM();}
 }
 
 function init(){
+  if(typeof initQuests==='function') initQuests();
+  if(typeof checkQuestTriggers==='function') checkQuestTriggers();
   loadAutoRunPref();
   if(typeof initBMRotation==='function')initBMRotation();
   renderAll();

@@ -187,8 +187,15 @@ function blueprintsEligibleToDrop(){
     if(STARTER_BPS.includes(bp.id))return false;          // starter = always available
     if(S.earnedBps.includes(bp.id))return false;          // already earned
     if(S.craftedBps.includes(bp.id))return false;         // already crafted
-    if((bp.prestigeReq||0)>S.prestige)return false;       // prestige-locked
-    if(bp.isDeck&&S.prestige<4)return false;               // mythic deck gate
+    // Gate by mesh distance instead of prestige
+    const _bpDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    const _prog=bp.result?pdef(bp.result):null;
+    const _minDist=_prog?.minMeshDist||0;
+    const _pReq=bp.prestigeReq||0;
+    // Convert old prestige req to dist req: P1=dist8, P2=dist16, P3=dist32, P4=dist48, P5=dist64
+    const _distReq=Math.max(_minDist, _pReq*8);
+    if(_bpDist<_distReq)return false;
+    if(bp.isDeck&&(typeof meshDistanceCurrent!=='function'||meshDistanceCurrent()<32))return false; // mythic deck gate (dist 32+)
     // Must own previous tier
     const result=pdef(bp.result);
     if(result&&result.tier&&result.tier>1){
@@ -220,7 +227,9 @@ function tryDropBlueprint(source){
 function startCraft(bpId){
   const bp=BLUEPRINTS.find(x=>x.id===bpId);if(!bp)return;
   if(S.craftedBps.includes(bpId)){addLog('Already crafted — check inventory','lw');return;}
-  if((bp.prestigeReq||0)>S.prestige){addLog(`Requires Prestige ${bp.prestigeReq}`,'lw');return;}
+  const _cd=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+  const _dr=Math.max(pdef(bp.result)?.minMeshDist||0,(bp.prestigeReq||0)*8);
+  if(_cd<_dr){addLog(`Requires mesh dist ${_dr} (you: ${_cd.toFixed(1)})`,'lw');return;}
   // Non-starter blueprints must be earned (dropped/rewarded) first
   if(!STARTER_BPS.includes(bpId)&&!S.earnedBps.includes(bpId)){addLog('Blueprint not yet discovered','lw');return;}
   if(S.crafting.some(x=>x.blueprintId===bpId&&!x.done)){addLog('Already crafting this','lw');return;}
@@ -287,7 +296,7 @@ function gainXP(amount){
     if(S.level===5)addLog('Unlock: Pro Rig available','li');
     if(S.level===12)addLog('Unlock: Mil-Spec available','li');
     if(S.level===16)addLog('Unlock: Ghost Frame available','li');
-    if(S.level===20){addLog('★ PRESTIGE available!','lp');document.getElementById('tab-prestige').style.color='#ffdd40';}
+    if(S.level===20){addLog('◈ Level 20 reached — character stats cost curve increases past this point','li');}
   }
   renderTopBar();
 }

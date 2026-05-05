@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MESH v0.5.4</title>
+<title>MESH v0.6</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -448,8 +448,10 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <button class="refresh-btn" id="autorun-toggle-btn" onclick="toggleAutoRun()" title="Toggle auto-run" style="display:none">AUTO ●</button>
   <button class="refresh-btn" onclick="showTab('save')">💾 Save</button>
 </div>
+<div id="quest-status" style="display:none;padding:4px 8px;background:#080d10;border-bottom:1px solid #1a3a1a;font-family:Share Tech Mono,monospace"></div>
 <div id="tabs">
   <div class="tab" id="tab-char" onclick="showTab('char')">⬡ CHAR</div>
+  <div class="tab" id="tab-story" onclick="showTab('story')">◈ LORE</div>
   <div class="tab active" id="tab-run" onclick="showTab('run')">▸ RUN</div>
   <div class="tab" id="tab-net" onclick="showTab('net')" style="display:none">⬡ NET</div>
   <div class="tab" id="tab-mesh" onclick="showTab('mesh')" style="display:none">⬡ MESH</div>
@@ -471,7 +473,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="ts-scanline"></div>
   <div class="ts-logo">MESH</div>
   <div class="ts-tagline">"All the nets that ever were, are, or will be make up the Mesh"</div>
-  <div class="ts-version">OS v0.5.4 — IDLE NETRUNNER</div>
+  <div class="ts-version">OS v0.6 — IDLE NETRUNNER</div>
   <div id="ts-content" class="ts-btns">
     <!-- filled by JS -->
   </div>
@@ -527,6 +529,10 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 
   <!-- RIGHT: tabbed panel -->
   <div id="right-panel">
+
+    <!-- STORY / LORE tab -->
+    <div id="tab-story-content" class="rpanel" style="overflow-y:auto">
+    </div>
 
     <!-- CHARACTER tab -->
     <div id="tab-char-content" class="rpanel" style="overflow-y:auto">
@@ -746,6 +752,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 <script src="js/ops.js"></script>
 <script src="js/achievements.js"></script>
 <script src="js/render.js"></script>
+<script src="js/quests.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

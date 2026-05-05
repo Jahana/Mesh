@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.5.4 \u2014 Help & Changes";
+  const title="MESH v0.6 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -430,6 +430,7 @@ function showTab(name){
   if(name==='mesh')renderMeshView();
   if(name==='char')renderCharacterTab();
   if(name==='net')renderNetTab();
+  if(name==='story'&&typeof renderStoryTab==='function')renderStoryTab();
   if(name==='ach')renderAchievements();
   if(name==='stats')renderStats();
 }
@@ -1389,7 +1390,7 @@ function renderCraft(){
       if(!S.earnedBps.includes(bp.id))return false;  // not yet discovered
     }
     if((bp.prestigeReq||0)>S.prestige)return false;  // prestige-locked
-    if(bp.isDeck&&S.prestige<4)return false;           // mythic deck gate
+    if(bp.isDeck&&(typeof meshDistanceCurrent!=='function'||meshDistanceCurrent()<32))return false; // mythic deck gate
     return true;
   }
 

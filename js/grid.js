@@ -193,6 +193,11 @@ function resolveDatastoreAction(cell){
       cell.scanned=true;
       addLog(`◉ DATA [${cell.r},${cell.c}]: all files processed`,'li');
       S.player.stalled=false;
+      // Quest: count DATASTORE scans for find_lore steps
+      if(typeof onQuestNodeComplete==='function'){
+        const _dst=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+        onQuestNodeComplete('DATASTORE',_dst,null);
+      }
     }
     return;
   }
@@ -378,6 +383,11 @@ function handleNodeArrival(cell){
     addLog(`◉ DATA [${cell.r},${cell.c}]: already scanned`,'li');
   } else if(cell.nodeType==='DATASTORE'&&!cell.files?.length){
     addLog(`◉ DATA [${cell.r},${cell.c}]: empty`,'li');
+    cell.scanned=true;
+    if(typeof onQuestNodeComplete==='function'){
+      const _dst2=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+      onQuestNodeComplete('DATASTORE',_dst2,null);
+    }
   }
 }
 
@@ -722,7 +732,10 @@ function buildGrid(){
     }
   }
   // Kraken — row-blocking ICE (P5+), placed at tier 5+
-  if(S.prestige>=5&&tier>=5&&Math.random()<0.3){
+  const _bpDist = typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+  if(_bpDist>=16&&Math.random()<0.15+(_bpDist/200)){
+    const _isArchive = cell?.nodeType==='ARCHIVE';
+    if(_isArchive&&typeof unlockAch==='function') unlockAch('deep_archive');
     const kr=rnd(1,rows-2); // not entry/exit rows
     const kc=rnd(1,cols-3); // leave room for 3 cells
     for(let dc=0;dc<3;dc++){
@@ -738,7 +751,7 @@ function buildGrid(){
   }
 
   // P9+: Architect ICE on COP nodes (auto-repairs when silenced)
-  if(S.prestige>=9){
+  if(_bpDist>=64){
     for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
       const cell=S.grid[r]?.[c];
       if(cell?.nodeType==='COP'&&!cell.ice&&Math.random()<0.5){

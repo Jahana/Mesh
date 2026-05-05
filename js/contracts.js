@@ -386,6 +386,11 @@ function finishRun(success,reason='complete'){
       runCred+=ct.reward.cred;runCts++;
       let repGain=ct.reward.xp;
       let bonusLog='';
+      // Quest progress tracking
+      if(typeof onQuestContractComplete==='function'){
+        const _qDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+        onQuestContractComplete(facKey,_qDist,ct.companyKey);
+      }
 
       // Evaluate condition
       if(ct.condition==='stealth'){
@@ -529,6 +534,10 @@ function finishRun(success,reason='complete'){
     peakPressure:S._peakPressure||0,
     nodesVisitedRun:S._nodesVisitedRun||0,
     iceBreachedRun:S._iceBreachedRun||0,
+    realMs:Date.now()-(S._runStartTime||Date.now()),
+    cred:runCred,
+    contracts:runCts,
+    copsSilenced:S._copsSilencedThisRun||0,
   };
 
   // Check run + progression achievements
@@ -542,6 +551,7 @@ function finishRun(success,reason='complete'){
       if(ns){
           markNodeComplete(S.mesh.activeNodeAddr);
           addLog(`◈ Node ${S.mesh.activeNodeAddr} complete`,'lg');
+          if(typeof onQuestNodeComplete==='function'){ const qNs=typeof currentNetState==='function'?currentNetState():null; const _qV=parseInt(S.mesh.activeNodeAddr,16);const qNode=qNs?.layout?.[_qV&0xF]?.[_qV>>4]; if(typeof onQuestNodeComplete==='function') onQuestNodeComplete(qNode?.nodeType,typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0,S.mesh.activeNodeAddr); }
           // Check for FF completion — triggers uplift/travel
           if(S.mesh.activeNodeAddr==='FF'){
             const isOriginNet = S.mesh.currentNet.x===0 && S.mesh.currentNet.y===0;
@@ -578,6 +588,7 @@ function finishRun(success,reason='complete'){
     S.mesh.activeNodeAddr = null;
   }
   generateBoard();renderTopBar();autoSave();
+  if(typeof checkQuestTriggers==='function') checkQuestTriggers();
   // Update net tab if active
   if(document.getElementById('tab-net-content')?.classList.contains('active')&&typeof renderNetTab==='function') renderNetTab();
   // Show run summary, then return to net map (or board for non-net runs)
