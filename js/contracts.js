@@ -507,7 +507,7 @@ function finishRun(success,reason='complete'){
   S.stats.contractsCompleted=(S.stats.contractsCompleted||0)+runCts;
   S.cred+=runCred;S.totalCred+=runCred;S.totalRuns++;
   const activeCt=S.active[0];
-  S.runHistory.unshift({tier:curTier(),success,cred:runCred,contracts:runCts,level:S.level,subfac:activeCt?.subfac,subfacName:activeCt?.subfacName||activeCt?.companyName,flavor:activeCt?.flavor});
+  S.runHistory.unshift({tier:curTier(),success,cred:runCred,contracts:runCts,level:S.level,subfac:activeCt?.subfac,subfacName:activeCt?.subfacName||activeCt?.companyName,flavor:activeCt?.flavor,netKey:S.mesh?.currentNet&&typeof netKey==='function'?netKey(S.mesh.currentNet.x,S.mesh.currentNet.y):null,nodeAddr:S.mesh?.lastNodeAddr||null,meshDist:typeof meshDistanceCurrent==='function'?Math.floor(meshDistanceCurrent()):null});
   if(S.runHistory.length>25)S.runHistory.pop();
   document.getElementById('alert-badge').style.display='none';
   const jb=document.getElementById('jackout-btn');if(jb)jb.style.display='none';

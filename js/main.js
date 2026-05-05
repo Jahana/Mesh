@@ -1,4 +1,4 @@
-// MESH v0.6 — main.js
+// MESH v0.6.1 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -147,7 +147,31 @@ function gameTick(ts){
   if(S.tick%2===0)renderGrid();
   if(S.tick%3===0){renderTopBar();if(typeof renderQuestStatus==='function')renderQuestStatus();}
   if(S.tick%30===0&&typeof questTick==='function') questTick();
+  if(S.tick%300===0) tickIdleIncome();
   if(S.tick%5===0){renderRunner();renderPrograms();renderRunRAM();}
+}
+
+
+// Passive income from faction rep — ticks every 300 game ticks (~30s at speed 1)
+function tickIdleIncome(){
+  if(!S.running) return; // only during runs
+  let income = 0;
+  const factions = ['corp','crim','anarch','neutral'];
+  factions.forEach(f => {
+    const rep = S.rep?.[f] || 0;
+    if(rep >= 100)  income += Math.floor(rep / 500);  // ~1₵ per 500 rep per tick
+  });
+  // Bonus from net company rep
+  const nsRep = (S.mesh?.visitedNets||[]).filter(ns=>ns.x===S.mesh?.currentNet?.x&&ns.y===S.mesh?.currentNet?.y);
+  if(nsRep.length) {
+    const localRep = Object.values(nsRep[0].rep||{}).reduce((a,v)=>a+v,0);
+    income += Math.floor(localRep / 1000);
+  }
+  if(income > 0){
+    S.cred += income;
+    if(!S.stats) S.stats={};
+    S.stats.passiveIncome = (S.stats.passiveIncome||0) + income;
+  }
 }
 
 function init(){

@@ -163,6 +163,13 @@ function pendingAutoMaint(){
   return (S.ops?.activeOps||[]).some(a=>!a.done&&a.opId==='prog_defrag');
 }
 
+function toggleOpAutoRepeat(opId){
+  if(!S.ops) return;
+  if(!S.ops.autoRepeat) S.ops.autoRepeat={};
+  S.ops.autoRepeat[opId]=!S.ops.autoRepeat[opId];
+  renderOps();
+}
+
 function renderOps(){
   const catEls={intel:'ops-intel',network:'ops-network',maint:'ops-maint'};
   Object.entries(OPS_BY_CAT).forEach(([cat,opIds])=>{
@@ -183,7 +190,9 @@ function renderOps(){
       }else if(nextRunEffect){
         statusHtml=`<span style="font-size:7px;color:#40ff80;flex:1">✓ ${nextRunEffect}</span>`;
       }else{
-        statusHtml=`<button class="buy-btn" ${check.ok?'':'disabled'} onclick="startOp('${opId}')" title="${check.ok?'':''+check.reason}" style="white-space:nowrap">${op.cost}₵${op.time>0?' '+op.time+'s':''}</button>`;
+        const _autoOn=S.ops?.autoRepeat?.[opId];
+        const _autoToggle=`<button class="buy-btn" onclick="toggleOpAutoRepeat('${opId}')" title="Auto-repeat" style="margin-left:4px;padding:2px 5px;font-size:7px;border-color:${_autoOn?'#40ff80':'#1a3a1a'};color:${_autoOn?'#40ff80':'#2a5a2a'}">${_autoOn?'⟳ ON':'⟳'}</button>`;
+        statusHtml=`<button class="buy-btn" ${check.ok?'':'disabled'} onclick="startOp('${opId}')" title="${check.ok?'':check.reason}" style="white-space:nowrap">${op.cost}₵${op.time>0?' '+op.time+'s':''}</button>${_autoToggle}`;
       }
       card.innerHTML=`<span style="font-size:14px;color:#40c0c0;width:18px;text-align:center">${op.icon}</span>
         <div style="flex:1;min-width:0">

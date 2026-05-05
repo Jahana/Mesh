@@ -1,4 +1,4 @@
-// MESH v0.6 — data.js
+// MESH v0.6.1 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.

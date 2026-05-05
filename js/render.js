@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.6 \u2014 Help & Changes";
+  const title="MESH v0.6.1 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -1596,6 +1596,12 @@ function renderStats(){
     <div class="ptitle" style="margin-top:8px">Lifetime</div>
     ${row('Total cred earned',fmtNum(S.totalCred)+'₵')}
     ${row('Current level','Lv '+S.level)}
+    <div class="ptitle" style="margin-top:8px">Mesh</div>
+    ${row('Nets cleared',fmtNum((S.mesh?.visitedNets||[]).filter(ns=>ns.completedNodes?.includes('FF')).length))}
+    ${row('Total nodes done',fmtNum((S.mesh?.visitedNets||[]).reduce((a,ns)=>a+(ns.completedNodes?.length||0),0)))}
+    ${row('Deepest dist',fmtNum(Math.max(0,...(S.mesh?.visitedNets||[]).map(ns=>typeof meshDistance==='function'?Math.floor(meshDistance(ns.x,ns.y)):0))))+'u'}
+    ${row('Quests done',fmtNum((S.quests?.completedChains||[]).length))}
+    ${row('XP pool earned',fmtNum(S.xpPool||0))}
   `;
 }
 
@@ -1657,6 +1663,8 @@ function renderProgressionScreen(){
     <span class="rr-result ${r.success?'rr-win':'rr-loss'}">${r.success?'DONE':'BOOT'}</span>
     <span style="color:#40c060;width:56px">+${r.cred}₵</span>
     <span style="color:${sfColor};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:7px">${sfName}</span>
+    ${r.nodeAddr?`<span style="font-size:6px;color:#1a4a2a">N${r.nodeAddr}</span>`:''}
+    ${r.meshDist!=null?`<span style="font-size:6px;color:#1a3a2a">d${r.meshDist}</span>`:''}
   </div>`;}).join('')}
     </div>`;
   }
@@ -1738,28 +1746,46 @@ function renderProgressionScreen(){
 }
 
 function renderPrestigeScreen(){
-  const el=document.getElementById('pres-inner');if(!el)return;
-  el.innerHTML=`<div class="prestige-warn">
-    <div class="pw-title">★ PRESTIGE SYSTEM</div>
-    <div class="pw-body"><span class="pw-loses">Prestige wipes everything.</span> Cred, programs, hardware, level, rep — all reset to zero.<br><br>
-    <span class="pw-keeps">Each prestige permanently unlocks a new ICE type and program type for all future runs.</span></div>
+  const el=document.getElementById('prestige-inner');if(!el)return;
+  const cleared=(S.mesh?.visitedNets||[]).filter(ns=>ns.completedNodes?.includes('FF')).length;
+  const totalNodes=(S.mesh?.visitedNets||[]).reduce((a,ns)=>a+(ns.completedNodes?.length||0),0);
+  const curDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent().toFixed(1):'0';
+  const distColor=parseFloat(curDist)>=256?'#ff2020':parseFloat(curDist)>=64?'#ff8020':parseFloat(curDist)>=16?'#ffdd40':'#40c060';
+  const uniqueItems=S.uniqueItems||[];
+  const loreCount=(S.loreLog||[]).length;
+  const questsDone=(S.quests?.completedChains||[]).length;
 
-  </div>
-  <div style="font-size:8px;color:#3a3a6a;margin-bottom:8px">Prestige wipes cred/programs/hardware. Level and rep are kept. Unlocks stack permanently.</div>
-  ${PRESTIGE_TREE.map(p=>{
-    const done=S.prestige>p.n;const next=S.prestige===p.n-1&&S.level>=20;const cur=S.prestige===p.n;const locked=S.prestige<p.n-1;
-    return`<div class="pt-card ${done?'pt-done':next||cur?'pt-next':'pt-locked'}">
-      <div class="pt-num ${done?'done':next||cur?'next':'lock'}">${done?'✓':p.n}</div>
-      <div class="pt-body">
-        <div class="pt-title ${next?'next':''}">${done?'COMPLETE':next?'NEXT UNLOCK':locked?'LOCKED':cur?'CURRENT':''}</div>
-        <div class="pt-unlocks">
-          <span class="pu-badge pu-ice">ICE: ${p.iceName}${p.iceId?(' STR '+(BASE_ICE[p.iceId]?.baseStr||'?')):''}</span>
-          <span class="pu-badge pu-prog">PROG: ${p.progName}</span>
-        </div>
-        <div class="pt-desc">${p.iceDesc} / ${p.progDesc}</div>
-      </div>
-    </div>`;
-  }).join('')}`;
+  function row(label,val,color='#60c080'){
+    return `<div style="display:flex;align-items:baseline;padding:3px 0;border-bottom:1px solid #0d1a0d">
+      <span style="flex:1;font-size:8px;color:#3a6a3a">${label}</span>
+      <span style="font-size:10px;color:${color};font-family:'Orbitron',monospace">${val}</span></div>`;
+  }
+
+  el.innerHTML=`<div style="padding:8px;font-family:'Share Tech Mono',monospace">
+    <div style="font-family:'Orbitron',monospace;font-size:10px;color:#40c060;letter-spacing:2px;margin-bottom:10px">WEAVER ARCHIVE</div>
+    <div class="ptitle">Mesh</div>
+    ${row('Current distance',curDist,distColor)}
+    ${row('Nets cleared',cleared)}
+    ${row('Nodes completed',totalNodes)}
+    ${row('Lore fragments',loreCount)}
+    <div class="ptitle" style="margin-top:8px">Quests</div>
+    ${row('Chains completed',questsDone)}
+    ${row('Unique items',uniqueItems.length,'#40aaff')}
+    ${uniqueItems.length?uniqueItems.map(u=>{const d=typeof UNIQUE_ITEMS!=='undefined'?UNIQUE_ITEMS[u.id]:null;
+      return `<div style="padding:4px 8px;border-left:2px solid #40aaff33;margin:2px 0;font-size:7px;color:#2a5a7a">${d?d.name:u.id} <span style="color:#1a4a6a">acquired dist ${u.meshDist?.toFixed(1)||'?'}</span></div>`;
+    }).join(''):''}
+    <div class="ptitle" style="margin-top:8px">Faction Standing</div>
+    ${['corp','crim','anarch','neutral'].map(f=>{
+      const r=S.rep?.[f]||0;
+      const tier=r>=4000?'Legend':r>=1500?'Elite':r>=500?'Trusted':r>=100?'Known':'Unknown';
+      const col={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060'}[f];
+      return row(f.charAt(0).toUpperCase()+f.slice(1),`${r} <span style="font-size:7px;color:${col}">${tier}</span>`,col);
+    }).join('')}
+    <div class="ptitle" style="margin-top:8px">Recent Lore</div>
+    ${(S.loreLog||[]).slice(0,3).map(e=>`<div style="padding:4px 8px;border-left:2px solid #1a4a2a;margin:2px 0">
+      <div style="font-size:7px;color:#2a6a3a;font-family:'Orbitron',monospace">${e.title}</div>
+    </div>`).join('')||'<div style="font-size:8px;color:#1a3a1a;padding:4px">None yet</div>'}
+  </div>`;
 }
 
 function renderAll(){renderTopBar();renderBoard();renderSelPanel();renderPrepRAM();renderPrograms();renderRunRAM();renderRunner();renderDeck();renderInventory();renderRunContracts();}
@@ -1980,6 +2006,7 @@ function summaryStay(){
 function triggerTrap(cell){
   if(!cell.trap||cell.trapTriggered)return;
   cell.trapTriggered=true;
+  if(!S.stats)S.stats={}; S.stats.trapsTriggered=(S.stats.trapsTriggered||0)+1;
   const revealed=cell.trapRevealed;
   const half=revealed?0.5:1; // revealed traps deal half effect
 

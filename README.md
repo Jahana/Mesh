@@ -1,4 +1,4 @@
-# MESH v0.6 — Idle Netrunner
+# MESH v0.6.1 — Idle Netrunner
 
 > *"All the nets that ever were, are, or will be make up the Mesh"*
 
@@ -8,7 +8,7 @@ Browser-based idle game set after the Blackout of 2072, when every AI vanished s
 
 ## Quickstart
 
-Open `index.html` in any modern browser. No server required. Saves to `localStorage` with 3 named slots + JSON export/import.
+Open `index.html` in any modern browser. No server required. Saves to `localStorage` — 3 named slots + JSON export/import.
 
 **Keys:** `1` `2` `4` — speed · `Space`/`0` — pause · `Esc` — jack out
 
@@ -20,68 +20,68 @@ Open `index.html` in any modern browser. No server required. Saves to `localStor
 FIRMWARE  (deck ROM tutorial — 9 concept nodes → MESH ACCESS)
 
 REAL WORLD  (home base)
-  ├── Email / Quest chains · Deck · Market · Craft (dist 32+) · Ops
+  ├── ◎ Email / Quest chains · Deck · Market · Craft (dist 32+) · Ops
   └── ⬡ Jack In → MESH
 
 MESH  (coordinate space x:y — unsigned 32-bit integers)
-  ├── dist 0–15: Clean · dist 16–63: Glitch · dist 64–255: Static · dist 256+: AI
+  ├── dist 0–15: Clean · 16–63: Glitch · 64–255: Static · 256+: AI
   ├── ⬡ MESH tab: unlocks on Uplift · ◈ LORE tab: story log
   └── Navigate cardinal neighbors · revisit any net
 
 NET  (16×16 node map, 00–FF)
-  ├── Factions by dist: Corp/Crim/Anarch/Neutral (0+) · Gov (16+) · AI (64+)
+  ├── Factions: Corp/Crim/Anarch/Neutral (0+) · Gov (16+) · AI (64+)
   ├── 3 companies per faction — subfactions, rep per net
   ├── Net market: faction gear scaled by distance
   └── ⬡ NET tab always visible in-net · click node → preview → ENTER
 
 NODE  (single contract run)
-  ├── Grid: 4×4 at dist 0 → 15×15 at dist 56 (dist/4)
-  ├── ICE STR: base + dist/3 + glitch bonus + static bonus
+  ├── Grid: dist/4 → TIER_GRIDS (4×4 at dist 0, 8×8 at dist 28, 15×15 at dist 56)
+  ├── ICE STR: base + dist/3 + glitch bonus (dist 16+) + static bonus (dist 64+)
   └── Complete FF → Uplift briefing → autorun travel
 ```
 
 ---
 
-## File Structure
+## Tabs
 
-| File | Contents |
-|------|----------|
-| `js/data.js` | Constants, ICE, programs, manufacturers, rep tiers, character stats, net market |
-| `js/state.js` | State, autorun (with quest overrides), uplift BFS |
-| `js/save.js` | Save/load/export/import, title screen |
-| `js/deck.js` | Inventory, hardware, attachments, shop, crafting, blueprints, black market |
-| `js/combat.js` | ICE combat, retaliation, trace resist, unique item bonuses |
-| `js/grid.js` | Traversal, ICE AI, traps, datastore lore drops, blueprint drops |
-| `js/contracts.js` | Contract gen, run lifecycle, rep, FF/Uplift, trace carry |
-| `js/ops.js` | Off-grid operations |
-| `js/achievements.js` | 95 achievements, all checkers (live refresh on unlock) |
-| `js/render.js` | All render functions, net market, character tab, net tab |
-| `js/main.js` | Game loop, pressure decay, trace cap, COP repair |
-| `js/mesh.js` | Mesh coordinates, distance, glitch effects |
-| `js/netgen.js` | Net layout, company name gen, firmware tutorial |
-| `js/world.js` | Home, net map, mesh traversal, uplift briefings, lore drops |
-| `js/quests.js` | Quest chains, email delivery, autorun overrides, unique items |
+| Tab | Always? | Contents |
+|---|---|---|
+| ⬡ CHAR | ✓ | Character stats, XP pool spend |
+| ◈ LORE | ✓ | Story log — Uplift briefings, quest lore, datastore fragments |
+| ▸ RUN | In-net | Active run, contract board, setup panel |
+| ⬡ NET | In-net | Net map — view/navigate independently of run |
+| ⬡ DECK | ✓ | Hardware, programs, attachments, black market |
+| ▸ MARKET | ✓ | Global (home) or net market (when jacked in) |
+| ⚙ CRAFT | dist 32+ | Blueprints, crafting queue |
+| ▦ INV | ✓ | Inventory management |
+| ⚡ OPS | ✓ | Off-grid operations with auto-repeat toggle |
+| 🏆 ACH | ✓ | 95 achievements, 7 categories |
+| 📊 STATS | ✓ | Run/combat/grid/mesh lifetime stats |
+| ▲ PROGRESS | ✓ | XP bar, rep, sub-faction rep by net |
+| ◈ ARCHIVE | ✓ | Weaver milestone summary, unique items, lore preview |
+| ⬡ MESH | Post-Uplift | Mesh coordinate nav, neighbor nets, visited nets |
+| 💾 SAVE | ✓ | Save slots, export/import |
 
 ---
 
 ## Difficulty Scaling (all from mesh distance)
 
-| Dimension | Formula | Example |
-|---|---|---|
-| Grid size | `dist/4` → TIER_GRIDS | 4×4 at 0, 8×8 at 32, 15×15 at 56 |
-| ICE STR | `base + dist/3 + glitch + static` | Gatekeeper: 2 → 13 at dist 32 |
-| Contract rewards | `+4% per dist unit` | ×5 at dist 100 |
-| Net market prices | `+8% per dist unit` | ×9 at dist 100 |
-| Net market gear | `+1 tier per 8 dist` | |
-| Blueprint drops | `dist ≥ 16, chance scales` | Archive nodes always trigger |
-| Mythic deck crafting | `dist ≥ 32` | (was prestige-gated, now fixed) |
-| COP self-repair | `dist ≥ 128` | Architect ICE zone |
+| Dimension | Formula |
+|---|---|
+| Grid size | `dist/4` → TIER_GRIDS[tier] |
+| ICE STR | `base + dist/3 + floor((dist-16)/8) + floor((dist-64)/16)` |
+| Contract rewards | `+4% per dist unit` |
+| Net market prices | `+8% per dist unit` |
+| Net market gear | `+1 stat tier per 8 dist` |
+| Blueprint drops | dist ≥ 16, chance scales; Archive nodes guaranteed |
+| Mythic crafting | dist ≥ 32 |
+| COP self-repair | dist ≥ 128 |
 
 ---
 
 ## Character Stats (⬡ CHAR tab)
 
-XP Pool accrues alongside level XP, never consumed by levelling.
+XP Pool accrues alongside level XP, never consumed by levelling. Shown in topbar as **POOL**.
 
 | Stat | Effect | Applied In |
 |---|---|---|
@@ -89,130 +89,156 @@ XP Pool accrues alongside level XP, never consumed by levelling.
 | Reflex | −0.4 ticks/move / level | `moveTicks()` |
 | Stealth | +2 pressure decay / level | decay + soothe |
 | Integrity | +3 max INT / level | `maxInt()` |
-| Trace Resist | −3% trace gain / level | all 4 trace sources |
-| Intrusion | +1 all breaker STR / level | combat STR |
+| Trace Resist | −3% trace gain / level | all trace sources |
+| Intrusion | +1 breaker STR / level | combat STR |
 
 Cost: 0–19 = `baseCost × (1 + level × 0.5)`. Level 20+ = 4× per level. No cap.
 
-Trace cap = 100 + `Trace Resist cap bonus`. Trace carry between runs = 30% on success / 70% on fail.
+Trace cap = 100 + Trace Resist cap bonus. Trace carry between runs: 30% on success / 70% on fail, decays 15% each run.
 
 ---
 
-## Factions & Government
+## Factions & Reputation
 
-| Faction | Unlocks at | Specialty |
+| Faction | Unlocks at | Legend Perk (4000 rep) |
 |---|---|---|
-| Corp | dist 0 | Decoder/Decrypt/Armor programs |
-| Criminal | dist 0 | Killer/Deceive/Ghost programs |
-| Anarchist | dist 0 | Fracter/Zap/Overclock programs |
-| Neutral | dist 0 | Balanced pool |
-| **Government** | **dist 16** | Scan/Armor/Modify, high cred multiplier |
-| AI | dist 64 | Adaptive ICE, exotic programs |
+| Corp | dist 0 | 0 trace at run start |
+| Criminal | dist 0 | Hunters 25% slower |
+| Anarchist | dist 0 | ICE −2 STR + trap immunity |
+| Neutral | dist 0 | Black market −20% |
+| Government | dist 16 | High cred multiplier |
+| AI | dist 64 | Adaptive ICE |
+
+Passive idle income: 1₵ per 500 global rep per 30s tick (during runs). Local company rep also contributes.
 
 ---
 
-## Quests (◎ Email → Accept)
+## Quests (◎ Email)
 
-Three multi-step quest chains delivered via email. Each step overrides autorun behavior:
+**Named chains** (story-driven, triggered by milestones):
 
-| Chain | Steps | Faction | Trigger | Reward |
-|---|---|---|---|---|
-| Ghost Signal | 6 | Neutral | On Uplift | 5000₵ + signal_fragment unique |
-| Corporate Extraction | 5 | Corp | 3 nets cleared | 12000₵ + 300 corp rep |
-| Anarchist Underground | 7 | Anarch | 8 nets cleared | 25000₵ + 800 anarch rep |
+| Chain | Steps | Trigger | Reward |
+|---|---|---|---|
+| Ghost Signal | 6 | Uplift | 5000₵ + Signal Fragment unique |
+| Corporate Extraction | 5 | 3 nets cleared | 12000₵ + 300 corp rep |
+| Anarchist Underground | 7 | 8 nets cleared | 25000₵ + 800 anarch rep |
 
-**Step types:** run_contracts · rep_faction · reach_coords · find_lore · find_item · clear_net
+**Procedural chains** (reactive, unlimited) — generated every 3 nets cleared when no chain is active. Each chain grows step-by-step; new steps are generated *after* the previous completes based on chain state, tension (0–100), history, and context. Chains end when tension hits 100 or max depth (3–6) is reached.
 
-**Autorun overrides:** `blockFF` · `targetFaction` (prefers matching company nodes) · `targetDist` · `priorityNodeType`
+- 7 flavor profiles: corp_espionage, crim_heist, anarch_op, neutral_mystery, gov_contract, fixer_gig, deep_run
+- 10 step types with weighted selection that responds to chain history and flags
+- Email body generated fresh each step from chain narrative state
+- Toast notification appears in-net when new email arrives
 
-`clear_net` steps never block FF. If current net is outside target dist range, autorun BFS navigates toward target dist midpoint before clearing.
-
----
-
-## Unique Items
-
-Rare artifacts from quest rewards. Persist permanently. Currently:
-
-- **Signal Fragment** — +5% trace resist bonus, masks your signal. Acquired from Ghost Signal chain.
+Autorun overrides per step: `blockFF` · `targetFaction` · `targetDist` · `priorityNodeType`
 
 ---
 
 ## Lore System (◈ LORE tab)
 
-Populated by three sources:
-- **Uplift briefings** — on every FF completion, distance-aware story + mechanic summary
-- **Quest lore** — narrative drops on chain completion (Ghost Signal, Corp Extraction, Anarchist Underground)
-- **Datastore fragments** — 10 unique pre-Blackout fragments, 15% drop chance per datastore visit
+Three sources:
+- **Uplift briefings** — 7 distance tiers, on every FF completion
+- **Quest lore** — narrative drops on chain completion
+- **Datastore fragments** — 10 unique pre-Blackout fragments, 15% drop chance
+
+---
+
+## Operations (⚡ OPS tab)
+
+Off-grid operations across Intel / Network / Maintenance categories. Each op has a **⟳ auto-repeat** toggle — when enabled, the op automatically re-queues 500ms after completing.
+
+---
+
+## Unique Items
+
+Rare artifacts from quest rewards, persist permanently. Currently:
+- **Signal Fragment** — +5% trace resist. From Ghost Signal chain.
 
 ---
 
 ## Autorun
 
-Toggle **AUTO** in topbar. Unlocked by Uplift. Persistent across sessions.
+Toggle **AUTO** in topbar. Unlocked by Uplift.
 
-**Within a net (quest overrides applied first):**
-1. Quest priority node type (VAULT/DATASTORE/TERMINAL)?
+**Within a net (priority order):**
+1. Quest priority node type?
 2. Quest target faction nodes?
 3. FF accessible and not blocked?
 4. 60% toward FF · 40% random
 
-**On FF — Uplift BFS (quest overrides applied first):**
-- `clear_net` step: BFS targets step's dist range midpoint
+**On FF — uplift BFS with quest awareness:**
+- Quest `clear_net`: targets step's dist range midpoint
 - Default: 60% deeper · 30% lateral · 10% toward origin
-- 8-hop search, up to dist 256
+- 8-hop search
 
 ---
 
-## Achievements (95 total, 7 categories)
+## File Structure
 
-Weaver · Mesh · Run Feats · Milestones · Discoveries · Gear & Craft · Operations
-
-Checkers fire on: run completion · contract success · combat events · node interactions · mesh travel · stat upgrades · ops completion
+| File | Contents |
+|------|----------|
+| `js/data.js` | Constants, ICE, programs, manufacturers, rep tiers, char stats, net market |
+| `js/state.js` | State, autorun, moveTicks, uplift BFS |
+| `js/save.js` | Save/load/export/import, title screen |
+| `js/deck.js` | Inventory, hardware, attachments, shop, crafting, blueprints (dist-gated) |
+| `js/combat.js` | ICE combat, retaliation, trace resist, unique bonuses |
+| `js/grid.js` | Traversal, ICE AI, traps (tracked), datastore lore drops, blueprint drops |
+| `js/contracts.js` | Contract gen, run lifecycle, rewards, rep, FF/Uplift, trace carry |
+| `js/ops.js` | Off-grid operations, auto-repeat |
+| `js/achievements.js` | 95 achievements, live refresh |
+| `js/render.js` | All render, Weaver Archive tab, enriched run history |
+| `js/main.js` | Game loop, idle income tick, pressure decay |
+| `js/mesh.js` | Mesh coordinates, distance, glitch effects |
+| `js/netgen.js` | Net layout, company names, firmware tutorial |
+| `js/world.js` | Home, net map, mesh traversal, uplift briefings, datastore lore |
+| `js/quests.js` | Quest chains, reactive proc gen engine, unique items, email delivery |
 
 ---
 
 ## Version History
 
-### v0.6 *(current)*
-**Critical gap fixes:**
-- Prestige system fully removed — `maxInt()` no longer uses `S.prestige`
-- Mythic deck crafting now gates on mesh dist ≥ 32 (not prestige)
-- Blueprint drops now gate on mesh dist ≥ 16, chance scales with distance
-- COP self-repair (Architect) now gates on dist ≥ 128
-- Government faction now actually generated at dist 16+, AI at dist 64+
-- Run summary enriched: `realMs`, `cred`, `contracts`, `copsSilenced`, `damageThisRun` all tracked
-- Achievement checkers wired to actual tracked data (speed_demon, cop_whisperer, etc.)
-- `_yellowAlertHit`/`_redAlertHit` tracked during runs (ghost_run, silent_exit achievements)
-- Quest unique item rewards handled — Signal Fragment grants +5% trace resist
-- Quest faction targeting applies in `autoPickNextNode` (prefers matching company nodes)
-- `reach_coords` re-checks on net entry (not only on travel)
-- `auto_travel` achievement counter added
-- `deep_archive` achievement fires on blueprint drop in Archive nodes
-- Datastore lore fragments (10 unique, 15% drop) → LORE tab, unlocks `lore_found`
-- `charTraceCapBonus` wired into trace-out threshold (raises cap above 100)
-- Trace carry between runs: 30% of trace on success, 70% on fail
-- Unique item system with `UNIQUE_ITEMS` catalog and persistent `S.uniqueItems`
+### v0.6.1 *(current)*
+- Trap stat tracking added (`trapsTriggered`)
+- ◈ ARCHIVE tab (was PRESTIGE): Weaver milestone dashboard — mesh stats, unique items, faction standing, recent lore
+- STATS tab: new Mesh section (nets cleared, deepest dist, quests done, XP pool)
+- Run history: now stores and displays net coordinates, node address, mesh distance
+- traceCarry: decays 15% each run (was permanent until next run)
+- Passive idle income from faction/company rep during runs
+- Ops auto-repeat: ⟳ toggle button per operation
+- Grid size: fixed both enterNode paths to use dist/4 (was still dist/16 in one path)
+
+### v0.6
+- Reactive procedural quest engine (chain grows step-by-step, email generated from state)
+- Named quest chains: Ghost Signal, Corporate Extraction, Anarchist Underground
+- Quest hooks wired: onQuestContractComplete, onQuestNodeComplete, onQuestMeshTravel
+- DATASTORE scanning counts for find_lore quest steps (fires mid-run)
+- In-net email toast on new message arrival
+- Blueprint drops fixed: prestigeReq converted to mesh dist (P1=dist8, P2=dist16, etc.)
+- Government faction generated at dist 16+, AI at dist 64+
+- Prestige fully removed from all game systems
+- Run summary enriched: realMs, cred, contracts, copsSilenced, damageThisRun
+- Achievement checkers wired to actual tracked data
+- Unique item system (Signal Fragment, UNIQUE_ITEMS catalog)
+- Quest faction targeting in autorun (prefers matching company nodes)
+- Datastore lore fragments (10 unique, 15% drop)
+- charTraceCapBonus wired to trace-out threshold
+- checkQuestTriggers runs on load and game init
 
 ### v0.5.4
-- Grid scales at dist/4; ICE STR from dist not level
-- All 6 char stat bonuses verified and wired
-- Contract rewards scale with distance; trace display rounded
-- Crafting hides owned programs
+- Grid size dist/4; ICE STR from dist not level
+- All 6 character stat bonuses verified and wired
+- Distance-scaled contract rewards; trace display rounded
 
 ### v0.5.3
 - Uplift lore briefings (7 distance tiers)
 - 95 achievements across 7 categories
-- Achievements live-refresh on unlock
 
-### v0.5.2
-- NET tab, autorun loadout fix, net market, runSnapshot, grid title bar
-
-### v0.5.1 / v0.5
-- Autorun button, XP Pool display, run summary in net, auto-uplift
-- Character stats, CHAR tab, Uplift/Mesh tab, FF gate, per-net rep
+### v0.5.x
+- Autorun, XP Pool, CHAR tab, NET tab, MESH tab, run summary
+- Per-net company rep, net market, suggested loadout, Apply Loadout
 
 ### v0.4.x
-- 4-tier architecture, net map, firmware tutorial, net generation, suggested loadout
+- 4-tier architecture, net map, firmware tutorial, net generation
 
 ### v0.1–v0.3
-- Core grid traversal, ICE combat, multi-file refactor, trap/attachment/rep/ops systems
+- Core grid traversal, ICE combat, contracts, multi-file refactor
