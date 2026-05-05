@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MESH v0.4</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;font-size:11px;overflow:hidden;}
+#app{display:flex;flex-direction:column;height:100vh;padding:8px;gap:6px;overflow:hidden;}
+#topbar{display:flex;gap:5px;align-items:center;flex-shrink:0;flex-wrap:wrap;}
+.stat{background:#0a1520;border:1px solid #1a3a2a;border-radius:3px;padding:3px 7px;display:flex;gap:4px;align-items:center;}
+.stat .lbl{color:#2a6a3a;font-size:9px;text-transform:uppercase;}
+.stat .val{color:#40ff80;font-size:11px;}
+.stat .val.gold{color:#ffdd40;}
+#alert-badge{padding:3px 9px;border-radius:3px;font-size:9px;font-weight:bold;letter-spacing:1px;}
+.ag{background:#0a2010;border:1px solid #1a5a2a;color:#40c060;}
+.ay{background:#201a00;border:1px solid #6a5a00;color:#ffd040;animation:blink 1.5s infinite;}
+.ar{background:#200800;border:1px solid #6a1a00;color:#ff4020;animation:blink 0.7s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.5}}
+#tabs{display:flex;gap:3px;flex-shrink:0;flex-wrap:wrap;}
+.tab{padding:4px 10px;background:#0a1218;border:1px solid #1a2a1a;border-radius:3px 3px 0 0;color:#3a6a3a;font-size:9px;cursor:pointer;transition:all 0.1s;}
+.tab:hover{color:#60a060;}
+.tab.active{background:#080d18;border-color:#30aa50;color:#40ff80;border-bottom-color:#080d18;}
+.tab.ptab{border-color:#3a3000;color:#8a7020;}
+.tab.ptab.active{border-color:#ffdd40;color:#ffdd40;}
+/* PERSISTENT LAYOUT */
+#game-layout{display:flex;flex:1;min-height:0;gap:6px;overflow:hidden;}
+
+/* Three-column layout: left | grid | right
+   Left and right are proportional, grid takes all remaining space */
+#left-col{
+  width:22%;          /* ~22% of window */
+  min-width:260px;
+  max-width:380px;
+  flex-shrink:0;
+  display:flex;flex-direction:column;gap:5px;overflow:hidden;
+}
+#board-section{flex:0 0 auto;max-height:45%;display:flex;flex-direction:column;overflow:hidden;}
+#contract-board{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+#grid-section{
+  flex:1;             /* takes all remaining space */
+  min-width:200px;
+  min-height:0;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:#080d18;border:1px solid #1a2a3a;border-radius:4px;padding:5px;
+}
+#grid-scroll-main{overflow:auto;flex:1;}
+#right-panel{
+  width:28%;          /* ~28% of window */
+  min-width:340px;
+  max-width:500px;
+  flex-shrink:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.rpanel{display:none;flex:1;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;padding-right:6px;}
+.rpanel.active{display:flex;}
+
+/* Responsive: narrow windows collapse to 2-col (no separate grid col) */
+@media(max-width:1100px){
+  #left-col{width:280px;min-width:220px;}
+  #right-panel{width:280px;min-width:240px;}
+}
+@media(max-width:800px){
+  #game-layout{flex-wrap:wrap;}
+  #left-col{width:100%;max-width:none;flex-direction:row;flex-wrap:wrap;max-height:40vh;}
+  #grid-section{min-width:100%;order:3;}
+  #right-panel{width:100%;max-width:none;max-height:40vh;}
+}
+/* keep .screen for modal overlay compatibility */
+.screen{display:none;}
+.screen.active{display:flex;}
+.ptitle{font-size:9px;color:#2a6a3a;letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid #1a2a1a;padding-bottom:4px;margin-bottom:6px;}
+.panel{background:#080d18;border:1px solid #1a2a1a;border-radius:4px;padding:7px;flex-shrink:0;}
+.ram-bar{height:3px;background:#1a2a1a;border-radius:2px;overflow:hidden;margin:3px 0;}
+.ram-fill{height:100%;background:#40aaff;transition:width 0.3s;border-radius:2px;}
+.hbar{height:3px;background:#1a2a1a;border-radius:2px;overflow:hidden;margin-top:2px;}
+.hfill{height:100%;border-radius:2px;transition:width 0.3s;}
+.pbar{height:2px;background:#1a2a1a;border-radius:2px;margin-top:1px;}
+.pfill{height:100%;border-radius:2px;background:#40c080;transition:width 0.3s;}
+.srow{display:flex;justify-content:space-between;padding:2px 0;font-size:9px;}
+.sk{color:#2a5a3a;}.sv{color:#60d080;}
+.spd-row{display:flex;gap:3px;margin-top:4px;}
+.spd-btn{padding:2px 5px;background:#0a1520;border:1px solid #1a3a2a;border-radius:3px;color:#40c080;font-family:'Share Tech Mono',monospace;font-size:8px;cursor:pointer;}
+.spd-btn.active{background:#0a2a10;border-color:#30aa60;}
+.refresh-btn{padding:3px 9px;background:#0a1218;border:1px solid #1a2a1a;border-radius:3px;color:#40a060;font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;}
+.refresh-btn:hover{border-color:#2a4a2a;}
+.action-btn{padding:4px 10px;background:#091810;border:1px solid #1a5a2a;border-radius:3px;color:#40c060;font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;}
+.action-btn:hover{background:#0d2818;}
+.action-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.danger-btn{padding:4px 10px;background:#180909;border:1px solid #5a1a1a;border-radius:3px;color:#c04040;font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;}
+.danger-btn:hover{background:#2a0808;}
+#log,#log-prep{height:100%;overflow-y:auto;display:flex;flex-direction:column-reverse;min-height:60px;max-height:160px;}
+.ll{font-size:8px;line-height:1.5;padding:1px 0;color:#2a4a3a;}
+.lg{color:#40c060;}.lw{color:#ffaa20;}.lb{color:#ff4040;}.li{color:#40aaff;}.lx{color:#aa44ff;}.lc{color:#ffdd40;}.lp{color:#ffaa00;}
+/* SAVE SCREEN */
+#save-screen{flex-direction:column;overflow-y:auto;}
+.save-slots{display:flex;flex-direction:column;gap:8px;width:100%;}
+.save-slot{background:#0a1218;border:1px solid #1a2a1a;border-radius:6px;padding:12px;display:flex;gap:12px;align-items:flex-start;}
+.save-slot.occupied{border-color:#1a3a2a;}
+.ss-num{font-family:'Orbitron',monospace;font-size:20px;color:#1a4a2a;width:28px;flex-shrink:0;text-align:center;padding-top:4px;}
+.ss-num.occ{color:#40ff80;}
+.ss-body{flex:1;min-width:0;}
+.ss-name{font-family:'Orbitron',monospace;font-size:12px;color:#60d080;margin-bottom:5px;}
+.ss-empty{color:#1a3a1a;font-size:10px;font-style:italic;}
+.ss-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:9px;margin-bottom:6px;}
+.ss-m{color:#3a6a3a;}.ss-m span{color:#60d080;}
+.ss-time{font-size:8px;color:#2a4a2a;margin-bottom:6px;}
+.ss-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.ss-name-input{background:#0a1218;border:1px solid #1a3a2a;border-radius:3px;color:#60d080;font-family:'Share Tech Mono',monospace;font-size:10px;padding:3px 8px;width:160px;}
+.ss-name-input:focus{outline:none;border-color:#30aa50;}
+.import-label{padding:3px 9px;background:#0a1218;border:1px solid #1a2a1a;border-radius:3px;color:#40a060;font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;display:inline-block;}
+.import-label:hover{border-color:#2a4a2a;}
+.new-game-banner{background:#0d1808;border:1px solid #2a5a10;border-radius:6px;padding:16px;text-align:center;margin-bottom:10px;}
+.ngb-title{font-family:'Orbitron',monospace;font-size:18px;color:#40ff80;letter-spacing:2px;margin-bottom:8px;}
+.ngb-sub{font-size:10px;color:#3a6a3a;line-height:1.7;margin-bottom:12px;}
+.big-btn{padding:10px 24px;background:#0a2010;border:1px solid #1a8a30;border-radius:4px;color:#40ff80;font-family:'Orbitron',monospace;font-size:12px;cursor:pointer;letter-spacing:2px;}
+.big-btn:hover{background:#102a18;border-color:#30d050;}
+/* CRAFT PANEL */
+#craft-left{width:42%;min-width:140px;max-width:200px;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto;}
+#craft-right{flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;}
+/* MAIN UNIFIED SCREEN */
+#prep-screen{gap:0;padding:0;overflow:hidden;}
+#main-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:0;overflow:hidden;padding:8px 4px 8px 8px;}
+#board-section{flex:0 0 auto;max-height:38%;display:flex;flex-direction:column;overflow:hidden;margin-bottom:6px;}
+#contract-board{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+#grid-section{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+#grid-scroll-main{overflow:auto;flex:1;}
+#main-sidebar{width:38%;min-width:170px;max-width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:4px;overflow-y:auto;padding:8px 8px 8px 4px;}
+.cc{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:5px 7px;cursor:pointer;display:flex;gap:6px;transition:border-color 0.1s;}
+.cc:hover{border-color:#2a5a2a;}
+.cc.taken{border-color:#2a6a2a;background:#091410;}
+.cc-diff{font-size:13px;width:18px;text-align:center;}
+.cc-body{flex:1;min-width:0;}
+.cc-name{color:#80d090;font-size:9px;font-family:'Orbitron',monospace;margin-bottom:2px;}
+.cc-objs{font-size:8px;color:#3a6a3a;line-height:1.5;}
+.cc-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px;}
+.ctag{font-size:7px;padding:1px 4px;border-radius:2px;}
+.tg{background:#0a1a0a;border:1px solid #1a4a1a;color:#40c060;}
+.td{background:#0a100a;border:1px solid #1a2a1a;color:#60aa60;}
+.tr{background:#1a0a0a;border:1px solid #3a1a1a;color:#c06060;}
+.take-btn{padding:2px 6px;background:#0a2010;border:1px solid #1a5a2a;border-radius:3px;color:#40c060;font-family:'Share Tech Mono',monospace;font-size:8px;cursor:pointer;align-self:center;white-space:nowrap;}
+.take-btn.drop{border-color:#4a1a1a;color:#c04040;}
+#sel-col{width:46%;min-width:160px;max-width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:5px;}
+#sel-list{font-size:9px;overflow-y:auto;max-height:130px;}
+.sl-row{padding:2px 0;border-bottom:1px solid #0d180d;color:#60a060;font-size:9px;}
+.sl-rew{color:#40c060;font-size:8px;}
+#launch-btn{width:100%;padding:6px;background:#0a2010;border:1px solid #1a6a2a;border-radius:4px;color:#40ff80;font-family:'Orbitron',monospace;font-size:10px;cursor:pointer;text-align:center;letter-spacing:2px;}
+#launch-btn:hover{background:#102a18;}
+#launch-btn:disabled{opacity:0.3;cursor:not-allowed;}
+
+#grid{display:inline-grid;gap:2px;padding:5px;background:#080d18;border:1px solid #1a2a3a;border-radius:4px;}
+.cell{width:54px;height:54px;border-radius:3px;border:1px solid #1a2a1a;background:#0a0f18;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;cursor:pointer;gap:1px;transition:border-color 0.15s;}
+.cell:hover{border-color:#3a6a4a;box-shadow:0 0 4px #1a4a2a44;}
+.cell.c-entry{border-color:#00ff88;background:#001a0e;}
+.cell.c-exit{border-color:#ff8800;background:#1a0a00;}
+.cell.c-player{background:#001530;border-color:#00aaff;box-shadow:0 0 8px #00aaff44;}
+.cell.c-combat{background:#1a0808;border-color:#ff2020;animation:combpulse 0.4s infinite;}
+@keyframes combpulse{0%,100%{border-color:#ff2020}50%{border-color:#ff6040}}
+.cell.c-target{border-color:#ffdd00;}
+.cell.c-done{border-color:#40ff80;}
+.cell.c-backdoor{border-color:#40aaff;}
+.cell.unmapped{opacity:0.3;filter:brightness(0.5);}
+.ci{font-size:13px;line-height:1;}
+.cl{font-size:7px;color:#2a5a3a;}
+.ibadge{position:absolute;top:1px;left:1px;font-size:6px;padding:1px 2px;border-radius:2px;line-height:1.3;}
+.cell-state{position:absolute;top:1px;right:1px;display:flex;flex-direction:column;gap:1px;align-items:flex-end;}
+.cs-dot{width:5px;height:5px;border-radius:50%;display:block;}
+.file-count{position:absolute;bottom:10px;right:2px;font-size:6px;color:#40aaff;font-family:'Share Tech Mono',monospace;}
+.cell-action-bar{position:absolute;bottom:0;left:0;right:0;height:2px;background:#1a2a1a;border-radius:0 0 2px 2px;overflow:hidden;}
+.cell-action-fill{height:100%;background:#40aaff;transition:width 0.1s;}
+.c-cop-active{border-color:#ff44aa88;}
+.c-cop-silenced{border-color:#404040;}
+.c-vault-locked{border-color:#886600;}
+.c-vault-open{border-color:#ffdd00;}
+.c-relay-visited{border-color:#40ffdd88;}
+.c-proxy-active{border-color:#c0a0ff88;}
+.ibg{background:#001a08;color:#00cc44;border:1px solid #00aa33;}
+.ibb{background:#1a0008;color:#ff4060;border:1px solid #aa0020;}
+.ibgu{background:#0d001a;color:#aa44ff;border:1px solid #6600cc;}
+.ibh{background:#1a0000;color:#ff2200;border:1px solid #880000;}
+.ibpr{background:#1a1200;color:#ffcc00;border:1px solid #aa8800;}
+.ibbl{background:#200008;color:#ff00ff;border:1px solid #800080;}
+.ibtp{background:#0a1a00;color:#80ff00;border:1px solid #406000;}
+.ibtr{background:#0a0a1a;color:#8080ff;border:1px solid #404080;}
+.pt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;pointer-events:none;}
+.pt-inner{width:18px;height:18px;border-radius:50%;background:#00aaff;border:2px solid #00ddff;display:flex;align-items:center;justify-content:center;font-size:9px;color:#001530;animation:ptpulse 1.5s infinite;}
+@keyframes ptpulse{0%,100%{box-shadow:0 0 5px #00aaff88}50%{box-shadow:0 0 14px #00aaffcc}}
+.pat-tok{position:absolute;bottom:2px;left:2px;z-index:9;width:11px;height:11px;border-radius:50%;background:#ffaa00;display:flex;align-items:center;justify-content:center;font-size:6px;color:#000;font-weight:bold;}
+.hun-tok{position:absolute;bottom:2px;right:2px;z-index:9;width:11px;height:11px;border-radius:50%;background:#ff2200;display:flex;align-items:center;justify-content:center;font-size:6px;color:#fff;font-weight:bold;}
+.obj-ind{position:absolute;top:1px;right:1px;font-size:7px;color:#ffdd00;}
+.bd-ind{position:absolute;bottom:1px;right:2px;font-size:7px;color:#40aaff;}
+
+#combat-panel{display:none;background:#120808;border:1px solid #4a1010;border-radius:4px;padding:6px;flex-shrink:0;}
+#combat-panel.active{display:block;}
+.comb-title{font-family:'Orbitron',monospace;font-size:10px;color:#ff4040;text-align:center;margin-bottom:3px;}
+.comb-vs{display:flex;justify-content:space-around;align-items:center;margin:4px 0;}
+.comb-side{text-align:center;}
+.comb-icon{font-size:18px;display:block;}
+.comb-name{font-size:7px;color:#8a6a6a;margin-top:1px;}
+.comb-str{font-size:13px;font-family:'Orbitron',monospace;}
+.cs-p{color:#40aaff;}.cs-i{color:#ff4040;}
+.comb-bar{height:3px;border-radius:2px;overflow:hidden;margin-top:2px;}
+.comb-fill{height:100%;border-radius:2px;transition:width 0.3s;}
+.rc{padding:3px 0;border-bottom:1px solid #0d180d;}
+.rc-name{color:#60a060;font-size:9px;}
+.rc-timer{font-size:8px;}
+.tc-ok{color:#40c060;}.tc-warn{color:#ffaa20;}.tc-exp{color:#ff4040;}
+.rc-obj{font-size:8px;color:#3a6a3a;line-height:1.5;}
+.obj-done{color:#40ff80;}.obj-fail{color:#ff4040;text-decoration:line-through;}
+.pr-row{display:flex;align-items:center;gap:4px;padding:2px 0;}
+.pr-icon{font-size:12px;width:15px;text-align:center;}
+.pr-name{color:#a0c8a0;font-size:8px;}
+.pr-ch{font-size:8px;color:#40aaff;margin-left:auto;}
+/* DECK */
+
+
+
+.hw-card{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:7px;cursor:pointer;margin-bottom:4px;}
+.hw-card:hover{border-color:#2a5a2a;}
+.hw-card.active-hw{border-color:#40ff80;background:#091810;}
+.hw-name{font-family:'Orbitron',monospace;font-size:10px;color:#60d080;margin-bottom:2px;}
+.hw-stats{display:flex;gap:8px;font-size:8px;color:#3a6a3a;}
+.hw-sv{color:#40aaff;}
+.inst-row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px;border:1px solid #1a2a1a;margin-bottom:2px;background:#0a1218;}
+.ir-icon{font-size:14px;width:18px;text-align:center;}
+.ir-body{flex:1;min-width:0;}
+.ir-name{color:#80c880;font-size:9px;}
+.ir-meta{font-size:8px;color:#3a6a3a;}
+.eject-btn{padding:2px 5px;background:#1a0808;border:1px solid #3a1a1a;border-radius:2px;color:#c04040;font-size:7px;cursor:pointer;}
+.ram-vis{display:flex;gap:2px;flex-wrap:wrap;margin-top:4px;}
+.rs{width:16px;height:16px;border-radius:2px;border:1px solid #1a3a1a;background:#0a1810;display:flex;align-items:center;justify-content:center;font-size:7px;}
+.rs.u{background:#0d2a18;border-color:#2a6a3a;}
+.rs.uh{background:#1a1a0a;border-color:#6a5a00;}
+.rs.ov{background:#1a0a0a;border-color:#6a0000;}
+/* MARKET */
+
+#mtabs{display:flex;gap:3px;flex-shrink:0;}
+.mtab{padding:3px 10px;background:#0a1218;border:1px solid #1a2a1a;border-radius:3px;color:#3a6a3a;font-size:9px;cursor:pointer;}
+.mtab:hover{color:#60a060;}
+.mtab.active{border-color:#30aa50;color:#40ff80;background:#091810;}
+#mkt-content{flex:1;overflow-y:auto;}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:5px;margin-bottom:10px;}
+.sc{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:7px;}
+.sc-head{display:flex;align-items:center;gap:5px;margin-bottom:4px;}
+.sc-icon{font-size:16px;width:20px;text-align:center;}
+.sc-name{color:#80c880;font-size:9px;font-family:'Orbitron',monospace;}
+.sc-desc{font-size:8px;color:#3a6a3a;line-height:1.5;margin-bottom:4px;}
+.sc-stats{display:flex;gap:6px;font-size:8px;margin-bottom:4px;}
+.sc-stat{color:#3a6a3a;}.sc-stat span{color:#40aaff;}
+.sc-str{color:#3a6a3a;}.sc-str span{color:#ffdd40;}
+.sc-foot{display:flex;align-items:center;justify-content:space-between;}
+.sc-cost{font-size:9px;color:#40c060;}
+.buy-btn{padding:2px 7px;background:#091810;border:1px solid #1a5a2a;border-radius:3px;color:#40c060;font-size:8px;cursor:pointer;font-family:'Share Tech Mono',monospace;}
+.buy-btn:hover{background:#0d2818;}
+.buy-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.t1{font-size:7px;padding:1px 4px;border-radius:2px;background:#0a1a0a;border:1px solid #1a4a1a;color:#40c060;}
+.t2{font-size:7px;padding:1px 4px;border-radius:2px;background:#0a0a1a;border:1px solid #1a1a5a;color:#6060ff;}
+.t3{font-size:7px;padding:1px 4px;border-radius:2px;background:#1a0a1a;border:1px solid #4a1a4a;color:#c060c0;}
+/* CRAFT */
+
+#craft-left{width:42%;min-width:140px;max-width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto;}
+#craft-right{flex:1;display:flex;flex-direction:column;gap:6px;}
+.blueprint-card{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:7px;cursor:pointer;margin-bottom:3px;}
+.blueprint-card:hover{border-color:#2a5a2a;}
+.blueprint-card.sel{border-color:#ffdd40;background:#0d0d08;}
+.bp-name{color:#ffdd40;font-size:10px;margin-bottom:2px;}
+.bp-result{font-size:9px;color:#3a6a3a;}
+.bp-status{font-size:8px;margin-top:2px;}
+.bp-ready{color:#40c060;}.bp-crafting{color:#ffaa20;}
+.craft-detail{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:10px;}
+.cd-title{font-family:'Orbitron',monospace;font-size:11px;color:#ffdd40;margin-bottom:6px;}
+.ing-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #0d180d;}
+.ing-icon{font-size:14px;width:18px;text-align:center;}
+.ing-name{flex:1;color:#80c880;font-size:10px;}
+.ing-have{font-size:9px;}
+.ing-ok{color:#40c060;}.ing-miss{color:#ff4040;}
+.craft-btn{width:100%;padding:7px;background:#0d1a08;border:1px solid #1a5a10;border-radius:4px;color:#40ff80;font-family:'Orbitron',monospace;font-size:10px;cursor:pointer;text-align:center;margin-top:8px;letter-spacing:1px;}
+.craft-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.active-craft{background:#0a1218;border:1px solid #2a3a1a;border-radius:4px;padding:8px;margin-bottom:4px;}
+.ac-name{color:#80c880;font-size:10px;margin-bottom:3px;}
+.ac-timer{font-size:9px;color:#ffaa20;}
+.craft-bar{height:4px;background:#1a2a1a;border-radius:2px;overflow:hidden;margin-top:4px;}
+.craft-fill{height:100%;background:linear-gradient(90deg,#1a6a10,#40ff20);border-radius:2px;transition:width 1s linear;}
+.collect-btn{margin-top:5px;padding:3px 8px;background:#091810;border:1px solid #1a5a2a;border-radius:3px;color:#40c060;font-size:9px;cursor:pointer;font-family:'Share Tech Mono',monospace;}
+/* INV */
+
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:5px;overflow-y:auto;flex:1;}
+.inv-card{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:6px;}
+.inv-icon{font-size:18px;margin-bottom:3px;}
+.inv-name{color:#80c880;font-size:9px;font-family:'Orbitron',monospace;}
+.inv-sub{font-size:8px;color:#3a6a3a;margin:2px 0;}
+.inv-actions{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}
+.inv-btn{padding:2px 6px;background:#091810;border:1px solid #1a3a1a;border-radius:2px;color:#40c060;font-size:8px;cursor:pointer;}
+.inv-btn:hover{border-color:#30aa50;}
+.inv-btn.d{border-color:#3a1a1a;color:#c04040;}
+/* PROGRESSION */
+#progression-screen{flex-direction:column;overflow-y:auto;}
+#prog-inner{display:flex;flex-direction:column;gap:8px;padding-right:4px;overflow-y:auto;flex:1;}
+.xp-section{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:10px;}
+.xp-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.xp-level{font-family:'Orbitron',monospace;font-size:20px;color:#40ff80;}
+.xp-next{font-size:9px;color:#3a6a3a;}
+.xp-bar-wrap{height:8px;background:#1a2a1a;border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.xp-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,#1a6a2a,#40ff60);transition:width 0.5s;}
+.prestige-section{background:#0d0d08;border:1px solid #3a3000;border-radius:4px;padding:10px;}
+.ps-title{font-family:'Orbitron',monospace;font-size:12px;color:#ffdd40;margin-bottom:6px;}
+.prestige-bar-wrap{height:6px;background:#1a1a08;border-radius:3px;overflow:hidden;margin-bottom:4px;}
+.prestige-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,#4a3a00,#ffaa20);transition:width 0.5s;}
+.prestige-btn{width:100%;padding:7px;background:#1a1400;border:1px solid #6a5a00;border-radius:4px;color:#ffdd40;font-family:'Orbitron',monospace;font-size:10px;cursor:pointer;text-align:center;letter-spacing:2px;margin-top:8px;}
+.prestige-btn:hover{background:#2a2000;border-color:#ffaa20;}
+.prestige-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.stat-card{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:8px;}
+.sc-label{font-size:9px;color:#2a6a3a;margin-bottom:4px;}
+.sc-value{font-family:'Orbitron',monospace;font-size:16px;color:#40c080;}
+.sc-sub{font-size:8px;color:#2a5a2a;margin-top:2px;}
+.tier-track{display:flex;gap:3px;flex-wrap:wrap;margin-top:4px;}
+.tier-node{padding:3px 7px;border-radius:3px;font-size:8px;border:1px solid #1a2a1a;background:#0a1218;color:#2a5a2a;text-align:center;}
+.tier-node.t-done{border-color:#2a6a2a;background:#091410;color:#40c060;}
+.tier-node.t-current{border-color:#40aaff;background:#0a1530;color:#40aaff;}
+.tier-node.t-locked{opacity:0.35;}
+.unlock-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:4px;border:1px solid #1a2a1a;background:#0a1218;margin-bottom:3px;}
+.unlock-row.unlocked{border-color:#2a6a2a;background:#091410;}
+.unlock-row.current{border-color:#ffdd40;background:#0d0d08;}
+.unlock-row.locked{opacity:0.4;}
+.ul-num{font-family:'Orbitron',monospace;font-size:11px;width:20px;text-align:center;}
+.ul-num.done{color:#40ff80;}.ul-num.cur{color:#ffdd40;}.ul-num.lock{color:#2a4a2a;}
+.run-row{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #0d180d;font-size:9px;}
+.rr-tier{color:#40aaff;width:36px;}
+.rr-result{width:52px;}
+.rr-win{color:#40c060;}.rr-loss{color:#ff4040;}
+/* PRESTIGE */
+#prestige-screen{flex-direction:column;overflow-y:auto;}
+#pres-inner{display:flex;flex-direction:column;gap:6px;padding-right:4px;overflow-y:auto;flex:1;}
+.prestige-warn{background:#1a1000;border:1px solid #6a4000;border-radius:4px;padding:12px;margin-bottom:4px;}
+.pw-title{font-family:'Orbitron',monospace;font-size:14px;color:#ffaa20;margin-bottom:8px;text-align:center;}
+.pw-body{font-size:10px;color:#8a7030;line-height:1.7;}
+.pw-loses{color:#ff6040;}.pw-keeps{color:#40c060;}
+.pt-card{background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:10px;display:flex;gap:10px;}
+.pt-card.pt-done{border-color:#2a6a2a;background:#091410;}
+.pt-card.pt-next{border-color:#ffdd40;background:#0d0d08;}
+.pt-card.pt-locked{opacity:0.35;}
+.pt-num{font-family:'Orbitron',monospace;font-size:18px;width:28px;text-align:center;flex-shrink:0;}
+.pt-num.done{color:#40ff80;}.pt-num.next{color:#ffdd40;}.pt-num.lock{color:#1a3a1a;}
+.pt-body{flex:1;}
+.pt-title{font-family:'Orbitron',monospace;font-size:9px;color:#80c880;margin-bottom:4px;}
+.pt-title.next{color:#ffdd40;}
+.pt-unlocks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+.pu-badge{font-size:8px;padding:2px 7px;border-radius:3px;}
+.pu-ice{background:#1a0808;border:1px solid #4a1a1a;color:#ff6040;}
+.pu-prog{background:#080a1a;border:1px solid #1a1a5a;color:#6080c0;}
+.pt-desc{font-size:8px;color:#3a6a3a;line-height:1.5;}
+
+/* LOCKED RUN BANNER */
+.run-locked-banner{background:#1a1000;border:1px solid #4a3000;border-radius:4px;padding:6px 10px;font-size:9px;color:#aa7020;margin-bottom:8px;text-align:center;}
+/* AUTORUN COUNTDOWN */
+#autorun-countdown{font-family:'Orbitron',monospace;letter-spacing:1px;}
+/* ATTACHMENTS */
+.attach-row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px;border:1px solid #1a2a1a;margin-bottom:2px;background:#0a1218;}
+.attach-empty{border-style:dashed;background:transparent;color:#1a3a1a;font-size:9px;}
+.attach-icon{font-size:14px;width:18px;text-align:center;color:#40aaff;}
+.attach-body{flex:1;min-width:0;}
+.attach-name{color:#80c880;font-size:9px;}
+.attach-desc{font-size:8px;color:#2a5a3a;}
+/* RUN SUMMARY */
+#run-summary{font-family:'Share Tech Mono',monospace;}
+.sum-title{font-family:'Orbitron',monospace;font-size:14px;text-align:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1a3a2a;}
+.sum-complete{color:#40ff80;}
+.sum-booted{color:#ff4040;}
+.sum-jackout{color:#ffaa20;}
+.sum-section{margin-bottom:10px;}
+.sum-label{font-size:9px;color:#2a6a3a;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;border-bottom:1px solid #0d1a0d;padding-bottom:3px;}
+.sum-row{display:flex;justify-content:space-between;font-size:9px;padding:2px 0;}
+.sum-key{color:#3a6a3a;}
+.sum-val{color:#60d080;}
+.sum-val.good{color:#40ff80;}
+.sum-val.bad{color:#ff4040;}
+.sum-val.warn{color:#ffaa20;}
+.sum-val.gold{color:#ffdd40;}
+.sum-cond-met{font-size:8px;padding:2px 7px;border-radius:2px;background:#0a1a0a;border:1px solid #1a5a1a;color:#40c060;}
+.sum-cond-miss{font-size:8px;padding:2px 7px;border-radius:2px;background:#1a0a0a;border:1px solid #5a1a1a;color:#c04040;}
+.sum-total{font-family:'Orbitron',monospace;font-size:16px;color:#40ff80;text-align:center;margin:10px 0;padding:8px;background:#0a1a0a;border:1px solid #1a5a1a;border-radius:4px;}
+.sum-btns{display:flex;gap:6px;margin-top:10px;}
+.sum-btn{flex:1;padding:6px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;text-align:center;}
+.sum-launch{background:#0a2010;border:1px solid #1a6a2a;color:#40ff80;}
+.sum-launch:hover{background:#102a18;}
+.sum-stay{background:#0a1218;border:1px solid #1a2a1a;color:#60a060;}
+.sum-stay:hover{background:#0d1820;}
+.sum-countdown{font-size:9px;color:#3a6a3a;text-align:center;margin-top:6px;}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:#000000cc;z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal-box{background:#0a0e18;border:1px solid #2a4a2a;border-radius:6px;padding:20px;max-width:360px;width:90%;}
+.modal-title{font-family:'Orbitron',monospace;font-size:13px;color:#40ff80;margin-bottom:10px;text-align:center;}
+.modal-body{font-size:10px;color:#6a8a6a;line-height:1.7;margin-bottom:14px;}
+.modal-btns{display:flex;gap:8px;}
+.modal-btn{flex:1;padding:7px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;text-align:center;}
+.modal-confirm{background:#0a2010;border:1px solid #1a6a2a;color:#40ff80;}
+.modal-confirm:hover{background:#102a18;}
+.modal-cancel{background:#0a1218;border:1px solid #1a2a1a;color:#60a060;}
+.modal-cancel:hover{background:#0d1820;}
+.modal-danger{background:#1a0808;border:1px solid #6a1a1a;color:#ff4040;}
+.modal-danger:hover{background:#2a0808;}
+@keyframes achIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes titleIn{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scanline{0%{top:-10%}100%{top:110%}}
+#title-screen{position:fixed;inset:0;z-index:10000;background:#020608;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;}
+#title-screen.hidden{display:none;}
+.ts-logo{font-family:'Orbitron',monospace;font-size:52px;color:#40ff80;letter-spacing:8px;text-shadow:0 0 40px #40ff8066,0 0 80px #40ff8033;animation:titleIn 0.8s ease;margin-bottom:6px;}
+.ts-tagline{font-family:'Share Tech Mono',monospace;font-size:11px;color:#2a5a3a;font-style:italic;letter-spacing:1px;margin-bottom:48px;text-align:center;max-width:500px;animation:titleIn 1s ease;}
+.ts-version{font-size:8px;color:#1a3a1a;font-family:'Share Tech Mono',monospace;margin-bottom:32px;}
+.ts-btns{display:flex;flex-direction:column;gap:10px;width:260px;animation:titleIn 1.2s ease;}
+.ts-btn{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:2px;padding:14px 24px;border-radius:4px;cursor:pointer;border:1px solid #1a4a2a;background:transparent;color:#40ff80;transition:all 0.2s;text-align:center;}
+.ts-btn:hover{background:#0a2a1a;border-color:#40ff80;box-shadow:0 0 12px #40ff8033;}
+.ts-btn.ts-primary{background:#0a1a0e;border-color:#40c060;font-size:13px;}
+.ts-btn.ts-primary:hover{background:#0f2a18;border-color:#60ff80;box-shadow:0 0 20px #40ff8044;}
+.ts-btn.ts-secondary{color:#3a7a5a;border-color:#1a3a2a;font-size:10px;}
+.ts-btn.ts-secondary:hover{color:#60c080;border-color:#2a5a3a;}
+.ts-btn:disabled{opacity:0.3;cursor:default;}
+.ts-btn:disabled:hover{background:transparent;border-color:#1a4a2a;box-shadow:none;}
+.ts-scan{position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,#00ff0804 2px,#00ff0804 4px);}
+.ts-scanline{position:fixed;left:0;right:0;height:60px;background:linear-gradient(transparent,#00ff0808,transparent);animation:scanline 4s linear infinite;pointer-events:none;}
+.ts-slot-picker{display:flex;flex-direction:column;gap:6px;width:260px;animation:titleIn 0.4s ease;}
+.ts-slot{font-family:'Share Tech Mono',monospace;font-size:9px;padding:10px 14px;border-radius:3px;border:1px solid #1a3a1a;background:#060d10;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.15s;}
+.ts-slot:hover{border-color:#2a5a3a;background:#0a1a12;}
+.ts-slot.empty{opacity:0.5;}
+.ts-slot-meta{color:#1a4a2a;font-size:8px;}
+.ts-back{font-size:8px;color:#1a4a2a;cursor:pointer;margin-top:8px;text-align:center;font-family:'Share Tech Mono',monospace;}
+.ts-back:hover{color:#3a7a5a;}
+.ts-name-input{font-family:'Share Tech Mono',monospace;font-size:12px;background:#060d10;border:1px solid #1a4a2a;color:#40ff80;padding:10px 12px;border-radius:3px;width:100%;box-sizing:border-box;outline:none;margin-top:4px;}
+.ts-name-input:focus{border-color:#40ff80;}
+.ts-label{font-size:8px;color:#2a5a3a;font-family:'Share Tech Mono',monospace;margin-bottom:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="topbar">
+  <div class="stat"><span class="lbl">CRED</span><span class="val" id="s-cred">0</span></div>
+  <div class="stat"><span class="lbl">LVL</span><span class="val" id="s-lvl">1</span></div>
+  <div class="stat"><span class="lbl">XP</span><span class="val" id="s-xp">0/100</span></div>
+  <div class="stat"><span class="lbl">PRESTIGE</span><span class="val gold" id="s-pres">0</span></div>
+  <div class="stat"><span class="lbl">TIER</span><span class="val" id="s-tier">1</span></div>
+  <div class="stat"><span class="lbl">INT</span><span class="val" id="s-int">10/10</span></div>
+  <div class="stat"><span class="lbl">RAM</span><span class="val" id="s-ram">0/8</span></div>
+  <div id="alert-badge" class="ag" style="display:none">● GREEN</div>
+  <button class="refresh-btn" style="margin-left:auto" onclick="showTab('save')">💾 Save</button>
+</div>
+<div id="tabs">
+  <div class="tab active" id="tab-run" onclick="showTab('run')">▸ RUN</div>
+  <div class="tab" id="tab-deck" onclick="showTab('deck')">⬡ DECK</div>
+  <div class="tab" id="tab-market" onclick="showTab('market')">▸ MARKET</div>
+  <div class="tab" id="tab-craft" onclick="showTab('craft')">⚙ CRAFT</div>
+  <div class="tab" id="tab-inv" onclick="showTab('inv')">▦ INV</div>
+  <div class="tab" id="tab-ops" onclick="showTab('ops')">⚡ OPS</div>
+  <div class="tab" id="tab-ach" onclick="showTab('ach')">🏆 ACH</div>
+  <div class="tab" id="tab-stats" onclick="showTab('stats')">📊 STATS</div>
+  <div class="tab" id="tab-progression" onclick="showTab('progression')">▲ PROGRESS</div>
+  <div class="tab" id="tab-save" onclick="showTab('save')">💾 SAVE</div>
+</div>
+
+<!-- PERSISTENT LAYOUT -->
+<!-- TITLE SCREEN -->
+<div id="title-screen">
+  <div class="ts-scan"></div>
+  <div class="ts-scanline"></div>
+  <div class="ts-logo">MESH</div>
+  <div class="ts-tagline">"All the nets that ever were, are, or will be make up the Mesh"</div>
+  <div class="ts-version">OS v0.4 — IDLE NETRUNNER</div>
+  <div id="ts-content" class="ts-btns">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<div id="game-layout">
+
+  <!-- LEFT: always-visible contracts + grid -->
+  <div id="left-col">
+    <div id="board-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-shrink:0">
+        <div class="ptitle" style="border:none;margin:0;padding:0">CONTRACTS — T<span id="board-tier">1</span></div>
+        <div style="display:flex;gap:5px;align-items:center">
+          <span id="run-indicator" style="display:none;font-size:8px;font-family:'Orbitron',monospace;padding:2px 6px;border:1px solid #1a4a1a;border-radius:3px;animation:blink 2s infinite"></span>
+          <div id="autorun-countdown" style="display:none;font-size:9px;color:#ffaa20;font-family:'Orbitron',monospace"></div>
+          <button class="refresh-btn" id="manual-launch-btn" onclick="manualLaunch()" style="display:none;border-color:#1a6a2a;color:#40ff80">▶ Now</button>
+          <span id="deck-label" style="font-size:7px;font-family:'Share Tech Mono',monospace;color:#60c080;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <span id="perm-state" style="font-size:7px;font-family:'Share Tech Mono',monospace;min-width:40px"></span>
+          <button class="refresh-btn" onclick="showPatchNotes()" title="Patch notes / help" style="color:#2a6a4a">?</button>
+          <button class="refresh-btn" id="autorun-toggle-btn" onclick="toggleAutoRun()" title="Toggle auto-run">AUTO ●</button>
+          <button class="refresh-btn" onclick="generateBoard()">↺</button>
+        </div>
+      </div>
+      <div id="contract-board"></div>
+    </div>
+    <div id="grid-section" style="position:relative;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;flex-shrink:0">
+        <div class="ptitle" style="border:none;margin:0;padding:0;font-size:8px" id="grid-section-label">GRID PREVIEW</div>
+        <div style="font-size:7px;color:#2a5a3a" id="grid-section-meta"></div>
+      </div>
+      <div id="grid-scroll-main"><div id="grid"></div></div>
+      <div style="font-size:7px;color:#2a5a3a;padding:2px 0;display:flex;gap:8px;flex-shrink:0"><span id="gb-l"></span><span id="gb-r"></span></div>
+      <!-- RUN SUMMARY OVERLAY -->
+      <div id="run-summary" style="display:none;position:absolute;inset:0;background:#080d18ee;border:1px solid #1a3a2a;border-radius:4px;overflow-y:auto;padding:10px;z-index:20;"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: tabbed panel -->
+  <div id="right-panel">
+
+    <!-- RUN sidebar (default view) -->
+    <!-- RUN SETUP PANEL — shown pre-run when contract selected -->
+    <div id="run-setup-panel" style="display:none;flex-direction:column;gap:4px;overflow-y:auto;flex:1;min-height:0;">
+      <div style="display:flex;gap:3px;flex-shrink:0;margin-bottom:2px;">
+        <button class="spd-btn active" id="setup-tab-setup" onclick="showSetupTab('setup')" style="flex:1;font-size:8px">⚙ SETUP</button>
+        <button class="spd-btn" id="setup-tab-run" onclick="showSetupTab('run')" style="flex:1;font-size:8px">▶ RUN</button>
+      </div>
+      <div id="setup-view-setup" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;">
+        <div class="panel">
+          <div class="ptitle">Selected Contract</div>
+          <div id="setup-contract-detail"></div>
+        </div>
+        <div class="panel">
+          <div class="ptitle">Suggested Loadout</div>
+          <div id="setup-loadout-list"></div>
+          <button class="buy-btn" id="setup-equip-btn" onclick="equipSuggestedLoadout()" style="width:100%;margin-top:6px">⚡ Equip This Loadout</button>
+        </div>
+        <div id="setup-ops-delay" style="display:none;background:#1a0a00;border:1px solid #6a3000;border-radius:3px;padding:5px 8px;font-size:8px;font-family:'Share Tech Mono',monospace;display:flex;flex-direction:column;gap:2px;"></div>
+        <div class="panel">
+          <div class="ptitle">Warnings</div>
+          <div id="setup-warnings"></div>
+        </div>
+        <div class="panel">
+          <div class="ptitle">Deck RAM <span id="setup-ram-lbl" style="color:#40aaff"></span></div>
+          <div class="ram-bar"><div class="ram-fill" id="setup-ram-bar" style="width:0%"></div></div>
+        </div>
+        <button class="refresh-btn" style="width:100%;border-color:#1a6a2a;color:#40ff80" onclick="manualLaunch()">▶ Launch Now</button>
+      </div>
+      <div id="setup-view-run" style="display:none;flex-direction:column;gap:4px;overflow-y:auto;flex:1;"></div>
+    </div>
+
+    <div id="tab-run-content" class="rpanel active">
+      <div id="combat-panel">
+        <div class="comb-title" id="comb-title">COMBAT</div>
+        <div class="comb-vs">
+          <div class="comb-side"><span class="comb-icon" id="comb-p-icon">▶</span><span class="comb-name">RUNNER</span><div class="comb-str cs-p" id="comb-p-str">—</div><div class="comb-bar"><div class="comb-fill" style="background:#40aaff;width:100%" id="comb-p-bar"></div></div></div>
+          <span style="font-size:14px;color:#3a1a1a">⚡</span>
+          <div class="comb-side"><span class="comb-icon" id="comb-i-icon">◈</span><span class="comb-name" id="comb-i-name">ICE</span><div class="comb-str cs-i" id="comb-i-str">—</div><div class="comb-bar"><div class="comb-fill" style="background:#ff4040;width:100%" id="comb-i-bar"></div></div></div>
+        </div>
+        <div style="font-size:8px;color:#8a4a4a;text-align:center" id="comb-status"></div>
+      </div>
+      <div class="panel">
+        <div class="ptitle">Contract <span id="sel-cred" style="color:#40ff80;float:right"></span></div>
+        <div id="sel-list"><span style="color:#1a3a1a;font-size:9px">— no contract selected —</span></div>
+      </div>
+      <div class="panel">
+        <div class="ptitle">Runner</div>
+        <div class="srow"><span class="sk">INT</span><span class="sv" id="r-hp">10/10</span></div>
+        <div class="hbar"><div class="hfill" style="background:#20c040;width:100%" id="r-hp-bar"></div></div>
+        <div class="srow" style="margin-top:3px"><span class="sk">TRACE</span><span class="sv" id="r-trace">0%</span></div>
+        <div class="hbar"><div class="hfill" style="background:#0066ff;width:0%" id="r-trace-bar"></div></div>
+        <div class="srow" style="margin-top:3px"><span class="sk">ALERT</span><span class="sv" id="r-alert" style="color:#40c060">GREEN</span></div>
+        <div class="hbar"><div class="hfill" style="background:#40c060;width:0%" id="r-alert-bar"></div></div>
+        <div class="spd-row">
+          <button class="spd-btn" id="spd-0" onclick="setSpeed(0)">⏸</button>
+          <button class="spd-btn active" id="spd-1" onclick="setSpeed(1)">1×</button>
+          <button class="spd-btn" id="spd-2" onclick="setSpeed(2)">2×</button>
+          <button class="spd-btn" id="spd-4" onclick="setSpeed(4)">4×</button>
+        </div>
+      </div>
+      <div class="panel"><div class="ptitle">Programs</div><div id="prog-list"></div></div>
+      <div class="panel">
+        <div class="ptitle">RAM <span id="run-ram-lbl" style="color:#40aaff"></span></div>
+        <div class="ram-bar"><div class="ram-fill" id="run-ram-bar" style="width:0%"></div></div>
+        <div id="run-files" style="margin-top:3px;"></div>
+      </div>
+      <div class="panel" style="flex:1;min-height:60px;"><div class="ptitle">Log</div><div class="log-out" id="log-prep"></div></div>
+      <button class="refresh-btn" style="width:100%;margin-top:2px;display:none" id="jackout-btn" onclick="jackOut()">⏏ Jack Out</button>
+    </div>
+
+    <!-- DECK -->
+    <div id="tab-deck-content" class="rpanel">
+      <div class="ptitle">Hardware</div>
+      <div id="hw-list" style="margin-bottom:8px;"></div>
+      <div class="ptitle">Memory <span id="ram-label" style="color:#40aaff">0/8</span></div>
+      <div class="ram-vis" id="ram-vis" style="margin-bottom:8px;"></div>
+      <div class="ptitle">Attachments <span id="attach-slots-label" style="color:#3a6a3a"></span></div>
+      <div id="attachment-slots" style="margin-bottom:8px;"></div>
+      <div class="ptitle">Installed Programs</div>
+      <div id="installed-list"></div>
+    </div>
+
+    <!-- MARKET -->
+    <div id="tab-market-content" class="rpanel">
+      <div id="mtabs">
+        <div class="mtab active" onclick="showMkt('gen')">General</div>
+        <div class="mtab" onclick="showMkt('corp')">Corp</div>
+        <div class="mtab" onclick="showMkt('crim')">Black Mkt</div>
+        <div class="mtab" onclick="showMkt('anarch')">Anarchist</div>
+      </div>
+      <div id="mkt-content" style="overflow-y:auto;flex:1;"></div>
+    </div>
+
+    <!-- CRAFT -->
+    <div id="tab-craft-content" class="rpanel">
+      <div style="display:flex;gap:8px;flex:1;min-height:0;">
+        <div id="craft-left">
+          <div class="ptitle">Blueprints</div>
+          <div id="blueprint-list"></div>
+        </div>
+        <div id="craft-right">
+          <div id="craft-detail-wrap"><div style="color:#1a3a1a;font-size:10px;padding:8px 0">Select a blueprint</div></div>
+          <div><div class="ptitle">Active Crafts</div><div id="active-crafts"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INV -->
+    <div id="tab-inv-content" class="rpanel">
+      <div class="ptitle">Inventory <span id="inv-ct" style="color:#3a6a3a"></span></div>
+      <div class="inv-grid" id="inv-grid"></div>
+    </div>
+
+    <!-- OPS -->
+    <div id="tab-ops-content" class="rpanel">
+      <div id="ops-inner" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;width:100%;">
+        <div style="font-size:8px;color:#2a5a3a;padding:2px 0">Operations run between grids. Effects apply to the next run.</div>
+        <div class="ptitle" style="margin-top:4px">Intelligence</div>
+        <div id="ops-intel"></div>
+        <div class="ptitle" style="margin-top:4px">Network</div>
+        <div id="ops-network"></div>
+        <div class="ptitle" style="margin-top:4px">Maintenance</div>
+        <div id="ops-maint"></div>
+        <div class="ptitle" style="margin-top:4px">Active Operations</div>
+        <div id="ops-active"></div>
+      </div>
+    </div>
+
+    <!-- ACHIEVEMENTS -->
+    <div id="tab-ach-content" class="rpanel">
+      <div id="ach-inner" style="overflow-y:auto;flex:1;width:100%;"></div>
+    </div>
+
+    <!-- STATS -->
+    <div id="tab-stats-content" class="rpanel">
+      <div id="stats-inner" style="overflow-y:auto;flex:1;width:100%;"></div>
+    </div>
+
+    <!-- PROGRESSION -->
+    <div id="tab-progression-content" class="rpanel">
+      <div id="prog-inner" style="overflow-y:auto;flex:1;"></div>
+    </div>
+
+    <!-- PRESTIGE -->
+    <div id="tab-prestige-content" class="rpanel">
+      <div id="pres-inner" style="overflow-y:auto;flex:1;"></div>
+    </div>
+
+    <!-- SAVE -->
+    <div id="tab-save-content" class="rpanel">
+      <div style="overflow-y:auto;flex:1;width:100%;">
+        <div id="save-new-game-banner" style="display:none">
+          <div class="new-game-banner">
+            <div class="ngb-title">MESH</div>
+            <div class="ngb-sub" style="font-style:italic;color:#2a5a3a">"All the nets that ever were, are, or will be make up the Mesh"</div>
+            <div class="ngb-sub">Traverse corporate grids, break ICE, fulfill contracts.<br>No save data found. Start a new game or load from an exported file.</div>
+            <button class="big-btn" onclick="startNewGame()">▶ NEW GAME</button>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="ptitle" style="border:none;margin:0;padding:0">SAVE SLOTS</div>
+            <label class="import-label">📂 Import<input type="file" accept=".json" style="display:none" onchange="importSave(event)"></label>
+          </div>
+          <div class="save-slots" id="save-slots-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right-panel -->
+</div><!-- /game-layout -->
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-btns" id="modal-btns"></div>
+  </div>
+</div>
+</div>
+<!-- TOOLTIP -->
+<div id="tt" style="display:none;position:fixed;z-index:9999;pointer-events:none;max-width:220px;
+  background:#060d10;border:1px solid #1a4a2a;border-radius:4px;padding:8px 10px;
+  font-family:'Share Tech Mono',monospace;font-size:8px;color:#60d080;
+  box-shadow:0 4px 16px #000a;line-height:1.6;"></div>
+
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/save.js"></script>
+<script src="js/deck.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/grid.js"></script>
+<script src="js/contracts.js"></script>
+<script src="js/ops.js"></script>
+<script src="js/achievements.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
