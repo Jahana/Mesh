@@ -98,10 +98,13 @@ function buyProg(defId,faction){
 // ── SHOP ROTATION ENGINE ──────────────────────────────────────────────────
 
 function eligibleItems(faction){
-  // Items in pool that meet prestige requirement
+  const meshDist=(typeof meshDistanceCurrent==='function')?meshDistanceCurrent():0;
   return (MKT_POOL[faction]||[]).filter(id=>{
     const d=pdef(id);
-    return d&&(!d.prestigeReq||S.prestige>=d.prestigeReq);
+    if(!d)return false;
+    if(d.prestigeReq&&S.prestige<d.prestigeReq)return false;
+    if(d.minMeshDist&&meshDist<d.minMeshDist)return false;
+    return true;
   });
 }
 

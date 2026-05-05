@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MESH v0.4</title>
+<title>MESH v0.5</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -26,21 +26,20 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 .tab.ptab{border-color:#3a3000;color:#8a7020;}
 .tab.ptab.active{border-color:#ffdd40;color:#ffdd40;}
 /* PERSISTENT LAYOUT */
-#game-layout{display:flex;flex:1;min-height:0;gap:6px;overflow:hidden;}
+#game-layout{display:flex;flex:1;min-height:0;gap:6px;overflow-x:auto;overflow-y:hidden;}
 
 /* Three-column layout: left | grid | right
    Left and right are proportional, grid takes all remaining space */
 #left-col{
-  width:22%;          /* ~22% of window */
-  min-width:260px;
-  max-width:380px;
+  width:22%;          /* overridden by JS based on grid size */
+  min-width:320px;
   flex-shrink:0;
   display:flex;flex-direction:column;gap:5px;overflow:hidden;
 }
-#board-section{flex:0 0 auto;max-height:45%;display:flex;flex-direction:column;overflow:hidden;}
+#board-section{display:none;}
 #contract-board{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
 #grid-section{
-  flex:1;             /* takes all remaining space */
+  flex:1;             /* takes full left column height */
   min-width:200px;
   min-height:0;
   display:flex;flex-direction:column;overflow:hidden;
@@ -123,7 +122,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 /* MAIN UNIFIED SCREEN */
 #prep-screen{gap:0;padding:0;overflow:hidden;}
 #main-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:0;overflow:hidden;padding:8px 4px 8px 8px;}
-#board-section{flex:0 0 auto;max-height:38%;display:flex;flex-direction:column;overflow:hidden;margin-bottom:6px;}
+
 #contract-board{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
 #grid-section{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
 #grid-scroll-main{overflow:auto;flex:1;}
@@ -440,12 +439,12 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="stat"><span class="lbl">CRED</span><span class="val" id="s-cred">0</span></div>
   <div class="stat"><span class="lbl">LVL</span><span class="val" id="s-lvl">1</span></div>
   <div class="stat"><span class="lbl">XP</span><span class="val" id="s-xp">0/100</span></div>
-  <div class="stat"><span class="lbl">PRESTIGE</span><span class="val gold" id="s-pres">0</span></div>
   <div class="stat"><span class="lbl">TIER</span><span class="val" id="s-tier">1</span></div>
   <div class="stat"><span class="lbl">INT</span><span class="val" id="s-int">10/10</span></div>
   <div class="stat"><span class="lbl">RAM</span><span class="val" id="s-ram">0/8</span></div>
   <div id="alert-badge" class="ag" style="display:none">● GREEN</div>
-  <button class="refresh-btn" style="margin-left:auto" onclick="showTab('save')">💾 Save</button>
+  <span id="context-nav" style="display:flex;gap:4px;align-items:center;margin-left:auto"></span>
+  <button class="refresh-btn" onclick="showTab('save')">💾 Save</button>
 </div>
 <div id="tabs">
   <div class="tab active" id="tab-run" onclick="showTab('run')">▸ RUN</div>
@@ -467,13 +466,30 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="ts-scanline"></div>
   <div class="ts-logo">MESH</div>
   <div class="ts-tagline">"All the nets that ever were, are, or will be make up the Mesh"</div>
-  <div class="ts-version">OS v0.4 — IDLE NETRUNNER</div>
+  <div class="ts-version">OS v0.5 — IDLE NETRUNNER</div>
   <div id="ts-content" class="ts-btns">
     <!-- filled by JS -->
   </div>
 </div>
 
-<div id="game-layout">
+<!-- HOME SCREEN (real world) -->
+<div id="home-screen" style="display:none;position:fixed;inset:0;z-index:5000;background:#020608;flex-direction:column;align-items:center;justify-content:center;">
+  <div class="ts-scan"></div>
+  <div class="ts-scanline"></div>
+  <div id="home-screen-inner" style="display:flex;flex-direction:column;align-items:center;"></div>
+</div>
+
+<!-- TUTORIAL SCREEN (firmware) -->
+<div id="tutorial-screen" style="display:none;position:fixed;inset:0;z-index:5001;background:#020608;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div class="ts-scan"></div>
+  <div style="font-family:'Orbitron',monospace;font-size:14px;color:#40aaff;letter-spacing:4px">FIRMWARE v1.0</div>
+  <div style="font-size:8px;color:#1a4a6a;margin-bottom:8px">Deck training environment — not in mesh</div>
+  <div id="tutorial-grid"></div>
+  <div id="tutorial-concept" style="display:none;background:#0a1218;border:1px solid #1a3a5a;border-radius:4px;padding:18px;max-width:480px;text-align:center;font-family:'Share Tech Mono',monospace;"></div>
+  <button class="ts-btn ts-secondary" onclick="showHomeScreen();renderHomeScreen()" style="margin-top:8px;font-size:9px">← Back to Home</button>
+</div>
+
+<div id="game-layout" style="display:none">
 
   <!-- LEFT: always-visible contracts + grid -->
   <div id="left-col">
@@ -486,9 +502,9 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
           <button class="refresh-btn" id="manual-launch-btn" onclick="manualLaunch()" style="display:none;border-color:#1a6a2a;color:#40ff80">▶ Now</button>
           <span id="deck-label" style="font-size:7px;font-family:'Share Tech Mono',monospace;color:#60c080;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
           <span id="perm-state" style="font-size:7px;font-family:'Share Tech Mono',monospace;min-width:40px"></span>
-          <button class="refresh-btn" onclick="showPatchNotes()" title="Patch notes / help" style="color:#2a6a4a">?</button>
-          <button class="refresh-btn" id="autorun-toggle-btn" onclick="toggleAutoRun()" title="Toggle auto-run">AUTO ●</button>
-          <button class="refresh-btn" onclick="generateBoard()">↺</button>
+          <span id="topbar-btns" style="display:flex;gap:4px;align-items:center"><button class="refresh-btn" onclick="showPatchNotes()" title="Patch notes / help" style="color:#2a6a4a">?</button>
+          <button class="refresh-btn" id="autorun-toggle-btn" onclick="toggleAutoRun()" title="Toggle auto-run" style="display:none">AUTO ●</button>
+          </span>
         </div>
       </div>
       <div id="contract-board"></div>
@@ -508,9 +524,14 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <!-- RIGHT: tabbed panel -->
   <div id="right-panel">
 
+    <!-- MESH tab — Mesh coordinate space / traversal -->
+    <div id="tab-mesh-content" class="rpanel" style="padding:8px;gap:6px">
+      <div id="mesh-view-inner"></div>
+    </div>
+
     <!-- RUN sidebar (default view) -->
     <!-- RUN SETUP PANEL — shown pre-run when contract selected -->
-    <div id="run-setup-panel" style="display:none;flex-direction:column;gap:4px;overflow-y:auto;flex:1;min-height:0;">
+    <div id="run-setup-panel" style="display:none;flex-direction:column;gap:4px;overflow-y:auto;flex:1;min-height:0;" data-hidden-new-arch="1">
       <div style="display:flex;gap:3px;flex-shrink:0;margin-bottom:2px;">
         <button class="spd-btn active" id="setup-tab-setup" onclick="showSetupTab('setup')" style="flex:1;font-size:8px">⚙ SETUP</button>
         <button class="spd-btn" id="setup-tab-run" onclick="showSetupTab('run')" style="flex:1;font-size:8px">▶ RUN</button>
@@ -531,7 +552,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
           <div id="setup-warnings"></div>
         </div>
         <div class="panel">
-          <div class="ptitle">Deck RAM <span id="setup-ram-lbl" style="color:#40aaff"></span></div>
+          <div class="ptitle">STORAGE <span id="setup-ram-lbl" style="color:#40aaff"></span></div>
           <div class="ram-bar"><div class="ram-fill" id="setup-ram-bar" style="width:0%"></div></div>
         </div>
         <button class="refresh-btn" style="width:100%;border-color:#1a6a2a;color:#40ff80" onclick="manualLaunch()">▶ Launch Now</button>
@@ -570,7 +591,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
       </div>
       <div class="panel"><div class="ptitle">Programs</div><div id="prog-list"></div></div>
       <div class="panel">
-        <div class="ptitle">RAM <span id="run-ram-lbl" style="color:#40aaff"></span></div>
+        <div class="ptitle">STORAGE <span id="run-ram-lbl" style="color:#40aaff"></span></div>
         <div class="ram-bar"><div class="ram-fill" id="run-ram-bar" style="width:0%"></div></div>
         <div id="run-files" style="margin-top:3px;"></div>
       </div>
@@ -696,6 +717,9 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   box-shadow:0 4px 16px #000a;line-height:1.6;"></div>
 
 <script src="js/data.js"></script>
+  <script src="js/mesh.js"></script>
+  <script src="js/netgen.js"></script>
+  <script src="js/world.js"></script>
 <script src="js/state.js"></script>
 <script src="js/save.js"></script>
 <script src="js/deck.js"></script>

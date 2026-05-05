@@ -1,5 +1,26 @@
-// MESH v0.4 — contracts.js
-// ========================
+function applyMfrPerk(){
+  S._mfrPerk={};
+  const hw=hwdef(); if(!hw)return;
+  const mfr=hw.mfr;
+  const ri=['common','uncommon','rare','legendary','mythic'].indexOf(hw.rarity||'common');
+  if(ri>=2){ // rare+
+    if(mfr==='haas')   {S._mfrPerk.ramBonus=2;addLog('★ Hexfield: RAM +2 this run','lg');}
+    if(mfr==='weyland'){S._mfrPerk.firstHitAbsorb=true;addLog('★ Ironwall: first hit absorbed','lg');}
+    if(mfr==='jinteki'){S._mfrPerk.stealthBonus=1;addLog('★ Silk Corp: +1 stealth power','lg');}
+    if(mfr==='nbn')    {S._mfrPerk.traceDecay=3;addLog('★ Vantage: trace decays 3%/tick','lg');}
+    if(mfr==='novatek'){S._mfrPerk.attachPowerBonus=1;addLog('★ Novatek: attachment power +1','lg');}
+  }
+  if(ri>=3){ // legendary+
+    if(mfr==='weyland'){S._mfrPerk.combatDmgReduction=1;addLog('★ Ironwall: combat -1 damage','lg');}
+    if(mfr==='jinteki'){S._mfrPerk.sneakBonus=20;addLog('★ Silk Corp: sneak +20%','lg');}
+    if(mfr==='nbn')    {S._mfrPerk.alertResist=20;addLog('★ Vantage: 20% alert resist','lg');}
+  }
+  if(ri>=4){ // mythic
+    if(mfr==='jinteki'){S._mfrPerk.trapImmune=true;addLog('★ Silk Corp: trap immune','lg');}
+    if(mfr==='nbn')    {S._mfrPerk.autoSoothe=true;addLog('★ Vantage: auto-soothe every 5t','lg');}
+  }
+}
+
 
 function flavorToRepKey(flavor){
   const map={CORPORATE:'corp',CRIMINAL:'crim',ANARCHIST:'anarch',NEUTRAL:'neutral'};
@@ -19,30 +40,16 @@ function generateBoard(){
   const count=Math.min(10,rnd(4,6)+Math.ceil(S.level/3));
   S.board=[];
 
-  // 75% from highest-rep subfactions, 25% from lowest-rep (new friendships)
-  const allSfKeys=Object.keys(SUBFACTIONS);
-  const sorted=[...allSfKeys].sort((a,b)=>(S.subrep?.[b]||0)-(S.subrep?.[a]||0));
-  const familiar=sorted.slice(0,Math.ceil(sorted.length*0.6));  // top 60% by rep
-  const fresh=sorted.slice(Math.ceil(sorted.length*0.6));       // bottom 40%
-
+  // Contracts now come from net nodes — board is legacy path for non-net runs
   for(let i=0;i<count;i++){
-    const useFresh=Math.random()<0.25&&fresh.length>0;
-    const pool=useFresh?fresh:familiar;
-    const sfKey=pool[Math.floor(Math.random()*pool.length)];
-    S.board.push(genContract(S.level,tier,null,sfKey));
+    S.board.push(genContract(S.level,tier));
   }
 
-  S.active=[];S.deckRAM=[];
+  S.active=[];S.storage=[];
   renderBoard();renderSelPanel();renderPrepRAM();
 }
 
 // ── CREDIT SINK ACTIONS ──────────────────────────────────────────────────
-function buyBoardRefresh(){
-  const cost=CREDIT_SINKS.board_refresh.cost;
-  if(S.cred<cost){addLog(`Board refresh costs ${cost}₵`,'lw');return;}
-  S.cred-=cost;addLog(`↺ Board refreshed (-${cost}₵)`,'li');
-  generateBoard();renderTopBar();autoSave();
-}
 function buyIntel(){
   const cost=CREDIT_SINKS.intel.cost;
   if(S.cred<cost){addLog(`Intel costs ${cost}₵`,'lw');return;}
@@ -97,17 +104,41 @@ function pickFlavor(){
   return sf.flavor||'NEUTRAL';
 }
 
-function genContract(level,tier,forceFlavor,forceSubfac){
-  // Pick subfaction — weighted by subrep
-  const sfKey=forceSubfac||pickSubfaction();
-  const sf=SUBFACTIONS[sfKey]||SUBFACTIONS.freelance;
-  const flavor=forceFlavor||sf.flavor||'NEUTRAL';
+function genContract(level,tier,forceFlavor,forceSubfac,forceCompany){
+  // forceCompany: {key,name,faction} from a net's company list — overrides SUBFACTIONS lookup
+  let sfKey, sf, flavor;
+  if(forceCompany){
+    sfKey = forceCompany.key;
+    const flavorMap={corp:'CORPORATE',crim:'CRIMINAL',anarch:'ANARCHIST',neutral:'NEUTRAL',gov:'CORPORATE',ai:'NEUTRAL'};
+    flavor = forceFlavor || flavorMap[forceCompany.faction] || 'NEUTRAL';
+    // Build a minimal sf-compatible object from faction defaults
+    const verbsByFac={
+      corp:   {basic:['obtain','access','delete'],advanced:['exfil','access','modify'],elite:['exfil','backdoor','modify'],conditions:['stealth'],credMult:1.1,repMult:0.8},
+      crim:   {basic:['obtain','delete','exfil'],advanced:['exfil','collect_delete','backdoor'],elite:['collect_delete','exfil','backdoor'],conditions:[],credMult:1.2,repMult:0.6},
+      anarch: {basic:['delete','destroy','activate'],advanced:['destroy','backdoor','delete'],elite:['backdoor','destroy','exfil'],conditions:['speed'],credMult:0.9,repMult:1.1},
+      neutral:{basic:['obtain','activate','archive'],advanced:['obtain','exfil','archive'],elite:['exfil','access','archive'],conditions:[],credMult:1.0,repMult:0.7},
+      gov:    {basic:['access','obtain','archive'],advanced:['access','exfil','modify'],elite:['modify','exfil','backdoor'],conditions:['stealth'],credMult:1.3,repMult:1.0},
+      ai:     {basic:['access','activate','obtain'],advanced:['modify','access','exfil'],elite:['backdoor','modify','exfil'],conditions:[],credMult:1.5,repMult:0.5},
+    };
+    const fv = verbsByFac[forceCompany.faction] || verbsByFac.neutral;
+    sf = {key:sfKey, name:forceCompany.name, parent:forceCompany.faction,
+      flavor, ...fv,
+      names:[forceCompany.name+' Contract', forceCompany.name+' Op', forceCompany.name+' Job',
+             'From '+forceCompany.name, forceCompany.name+' Request'],
+    };
+  } else {
+    sfKey = forceSubfac || pickSubfaction();
+    sf = SUBFACTIONS[sfKey] || SUBFACTIONS.freelance;
+    flavor = forceFlavor || sf.flavor || 'NEUTRAL';
+  }
   const fd=sf;
 
   // Diff scales with level and rep
   const maxDiff=Math.min(4,Math.ceil(level/5)+1);
   const parentRep=S.rep[sf.parent]||0;
-  const subRep=S.subrep?.[sfKey]||0;
+  // Use per-net rep if in a net, else global parent rep
+  const ns=typeof currentNetState==='function'?currentNetState():null;
+  const subRep=ns?.rep?.[sfKey]||0;
   const effectiveRep=Math.max(parentRep,subRep);
   const repAllowedDiff=effectiveRep>=1500?4:effectiveRep>=500?3:effectiveRep>=100?2:1;
   const diff=sf.parent==='neutral'?rnd(1,Math.min(maxDiff,2)):Math.min(maxDiff,rnd(1,repAllowedDiff));
@@ -169,15 +200,15 @@ function toggleContract(cid){
   if(ct.taken){
     // Deselect this contract
     ct.taken=false;S.active=[];
-    ct.objectives.forEach(o=>{if(o.file)S.deckRAM=S.deckRAM.filter(f=>f.id!==o.file.id);});
+    ct.objectives.forEach(o=>{if(o.file&&S.storage)S.storage=S.storage.filter(f=>f.id!==o.file.id);});
   }else{
     // Drop any existing selection first — one contract per run
     S.board.forEach(other=>{
-      if(other.taken){other.taken=false;other.objectives.forEach(o=>{if(o.file)S.deckRAM=S.deckRAM.filter(f=>f.id!==o.file.id);});}
+      if(other.taken){other.taken=false;other.objectives.forEach(o=>{if(o.file&&S.storage)S.storage=S.storage.filter(f=>f.id!==o.file.id);});}
     });
-    S.active=[];S.deckRAM=[];
+    S.active=[];S.storage=[];
     const need=ct.objectives.filter(o=>o.file).length;
-    if(need>S.deckRAMMax){addLog('Contract requires more RAM than available','lw');return;}
+    if(need>S.storageMax){addLog('Contract requires more RAM than available','lw');return;}
     // Rep requirement check
     if(ct.repReq>0){
       const fac=ct.flavor?.toLowerCase();
@@ -191,7 +222,7 @@ function toggleContract(cid){
       }
     }
     ct.taken=true;S.active=[ct];
-    ct.objectives.forEach(o=>{if(o.file){o.file.preloaded=true;S.deckRAM.push(o.file);}});
+    ct.objectives.forEach(o=>{if(o.file){o.file.preloaded=true;S.storage.push(o.file);}});
     autoLoadout(ct);
   }
   renderBoard();renderSelPanel();renderPrepRAM();
@@ -372,15 +403,22 @@ function finishRun(success,reason='complete'){
 
       if(facKey){
         const prevTier=repTierName(facKey);
-        // Sub-faction rep gain (full amount)
-        const sfKey=ct.subfac;
-        if(sfKey&&S.subrep){
-          S.subrep[sfKey]=(S.subrep[sfKey]||0)+repGain;
-          const sfDef=SUBFACTIONS[sfKey];
-          const sfRep=S.subrep[sfKey];
-          addLog(`◈ ${sfDef?.name||sfKey}: +${repGain} rep (${sfRep} total)`,'lg');
+        // Company/subfaction rep gain — stored in net state
+        const sfKey=ct.subfac||ct.companyKey;
+        const sfName=ct.subfacName||ct.companyName||sfKey||'?';
+        if(sfKey){
+          const ns=typeof currentNetState==='function'?currentNetState():null;
+          if(ns){
+            if(!ns.rep)ns.rep={};
+            ns.rep[sfKey]=(ns.rep[sfKey]||0)+repGain;
+            addLog(`◈ ${sfName}: +${repGain} rep (${ns.rep[sfKey]} total)`,'lg');
+          } else {
+            addLog(`◈ ${sfName}: +${repGain} rep (no net state — rep lost)`,'lw');
+          }
+        } else {
+          addLog(`◈ Rep gain ${repGain} — no company key on contract`,'lw');
         }
-        // Parent faction gets 30% of sub-faction gain + small flat
+        // Parent faction gets 30% aggregated globally across nets
         const parentGain=Math.floor(repGain*0.30)+3;
         S.rep[facKey]=(S.rep[facKey]||0)+parentGain;
         // Rep conflict on parent
@@ -393,7 +431,7 @@ function finishRun(success,reason='complete'){
         if(facKey&&repTierName(facKey)!==prevTier)addLog(`★ ${(facKey||'').toUpperCase()} rep: ${prevTier} → ${repTierName(facKey)}`,'lp');
         // Record in repChanges for run summary
         if(!S._repChanges)S._repChanges=[];
-        S._repChanges.push({fac:facKey,gain:parentGain,subfac:sfKey,subGain:repGain,rival:rival,rivalLoss:rival?Math.floor(parentGain*0.3):0});
+        S._repChanges.push({fac:facKey,gain:parentGain,subfac:sfKey,subfacName:sfName,subGain:repGain,rival:rival,rivalLoss:rival?Math.floor(parentGain*0.3):0});
       }
 
       // Booted penalty: lose rep
@@ -427,19 +465,20 @@ function finishRun(success,reason='complete'){
     }
   });
   // Cash out downloaded datastore files
-  const dsFiles=S.deckRAM.filter(f=>!f.preloaded&&(f.credValue||0)>0);
+  if(!S.storage)S.storage=[];
+  const dsFiles=S.storage.filter(f=>!f.preloaded&&(f.credValue||0)>0);
   const dsCred=dsFiles.reduce((a,f)=>a+(f.credValue||0),0);
   if(dsCred>0){
     runCred+=dsCred;
-    S.deckRAM=S.deckRAM.filter(f=>f.preloaded||!(f.credValue>0));
+    S.storage=S.storage.filter(f=>f.preloaded||!(f.credValue>0));
     addLog(`◉ Data sold: +${dsCred}₵ (${dsFiles.length} file${dsFiles.length>1?'s':''})`,'lc');
   }
   // Cash out GPU display feeds
-  const gpuFiles=S.deckRAM.filter(f=>f.type==='DISPLAY'&&f.bonusCred);
+  const gpuFiles=S.storage.filter(f=>f.type==='DISPLAY'&&f.bonusCred);
   const gpuCred=gpuFiles.reduce((a,f)=>a+(f.bonusCred||0),0);
   if(gpuCred>0){
     runCred+=gpuCred;
-    S.deckRAM=S.deckRAM.filter(f=>!(f.type==='DISPLAY'&&f.bonusCred));
+    S.storage=S.storage.filter(f=>!(f.type==='DISPLAY'&&f.bonusCred));
     addLog(`▣ GPU feeds: +${gpuCred}₵`,'lc');
   }
   S.traceCarry=Math.floor(S.trace*0.10);
@@ -454,7 +493,7 @@ function finishRun(success,reason='complete'){
   S.stats.contractsCompleted=(S.stats.contractsCompleted||0)+runCts;
   S.cred+=runCred;S.totalCred+=runCred;S.totalRuns++;
   const activeCt=S.active[0];
-  S.runHistory.unshift({tier:curTier(),success,cred:runCred,contracts:runCts,level:S.level,subfac:activeCt?.subfac,flavor:activeCt?.flavor});
+  S.runHistory.unshift({tier:curTier(),success,cred:runCred,contracts:runCts,level:S.level,subfac:activeCt?.subfac,subfacName:activeCt?.subfacName||activeCt?.companyName,flavor:activeCt?.flavor});
   if(S.runHistory.length>25)S.runHistory.pop();
   document.getElementById('alert-badge').style.display='none';
   const jb=document.getElementById('jackout-btn');if(jb)jb.style.display='none';
@@ -473,7 +512,7 @@ function finishRun(success,reason='complete'){
     integrityLeft:S.integrity, integrityMax:maxInt(),
     traceEnd:S.trace,
     alertReached:S._redAlertHit?'RED':S.alert===1?'YELLOW':'GREEN',
-    filesInRAM:[...S.deckRAM],
+    filesInRAM:[...S.storage],
     repChanges:[...S._repChanges||[]],
     conditionMet:S.active[0]?.conditionMet||false,
     runDuration:S.stats?.currentRunStart?Date.now()-S.stats.currentRunStart:0,
@@ -487,10 +526,53 @@ function finishRun(success,reason='complete'){
   if(typeof checkRunAchievements==='function')checkRunAchievements(_lastRunSummary);
   if(typeof checkProgressionAchievements==='function')checkProgressionAchievements();
   S.active=[];S.board=[];
-  generateBoard();renderTopBar();renderBoard();autoSave();
-  showRunSummary();
-  // Restart autorun countdown — autoSelectContracts runs inside this
-  if(typeof startAutoRunCountdown==='function')startAutoRunCountdown();
+  // Mark node complete on success; always clear activeNodeAddr
+  if(S.mesh?.currentNet && S.mesh?.activeNodeAddr){
+    if(success){
+      const ns = typeof currentNetState==='function'?currentNetState():null;
+      if(ns){
+          markNodeComplete(S.mesh.activeNodeAddr);
+          addLog(`◈ Node ${S.mesh.activeNodeAddr} complete`,'lg');
+          // Check for Uplift: node FF in net 0:0
+          const isOriginNet = S.mesh.currentNet.x===0 && S.mesh.currentNet.y===0;
+          if(S.mesh.activeNodeAddr==='FF' && isOriginNet && !S.mesh.traversalUnlocked){
+            S.mesh.traversalUnlocked = true;
+            addLog('','li');
+            addLog('◈ ◈ ◈ UPLIFT GRANTED ◈ ◈ ◈','lp');
+            addLog('Mesh traversal unlocked. The coordinate space opens before you.','li');
+            addLog('Net 0:0 is behind you. The rest of the Mesh awaits.','li');
+            addLog('','li');
+            // Show Mesh tab
+            const meshTab = document.getElementById('tab-mesh');
+            if(meshTab) meshTab.style.display='';
+            if(typeof autoSave==='function') autoSave();
+          }
+        }
+    }
+    // Remember last visited node so net map can center on it
+    S.mesh.lastNodeAddr = S.mesh.activeNodeAddr;
+    S.mesh.activeNodeAddr = null;
+  }
+  generateBoard();renderTopBar();autoSave();
+  // Return to net layer view after a node run
+  if(S.mesh?.currentNet){
+    S.running = false;
+    S.combat  = null;
+    // Clear inline display override so run panel yields to net view
+    const runPanel = document.getElementById('tab-run-content');
+    if(runPanel) runPanel.style.removeProperty('display');
+    // Dismiss run summary overlay if showing
+    const sumEl = document.getElementById('run-summary');
+    if(sumEl) sumEl.style.display = 'none';
+    // Re-render the net map with the newly completed node highlighted
+    setTimeout(()=>{
+      if(typeof showTab==='function') showTab('run');
+      if(typeof renderNetView==='function') renderNetView();
+    }, 300);
+  } else {
+    showRunSummary();
+    if(typeof startAutoRunCountdown==='function')startAutoRunCountdown();
+  }
 }
 
 // RENDER

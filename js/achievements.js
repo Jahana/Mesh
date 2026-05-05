@@ -92,7 +92,7 @@ function checkRunAchievements(summary){
 
   // Data hoarder — all non-preloaded RAM slots filled
   const downloaded=summary.dsFiles||[];
-  if(downloaded.length>0&&S.deckRAM.filter(f=>!f.preloaded).length>=(S.deckRAMMax-reservedRAM()))
+  if(downloaded.length>0&&(S.storage||[]).filter(f=>!f.preloaded).length>=(storageMax()-reservedRAM()))
     unlockAch('data_hoarder');
 
   // Perfect heist

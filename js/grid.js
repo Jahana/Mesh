@@ -84,9 +84,9 @@ function tryStoreFile(f, sourceLabel){
   // Try to store file in deckRAM. If full, evict least valuable non-preloaded file
   // if the new file is more valuable. Returns true if stored.
   const val=f.credValue||0;
-  const available=S.deckRAMMax-S.deckRAM.length-reservedRAM();
+  const available=S.storageMax-S.storage.length-reservedRAM();
   if(available>0){
-    S.deckRAM.push(f);
+    S.storage.push(f);
     if(!S.stats)S.stats={};
     S.stats.filesDownloaded=(S.stats.filesDownloaded||0)+1;
     if(val>0)S.stats.credFromFiles=(S.stats.credFromFiles||0)+val;
@@ -95,11 +95,11 @@ function tryStoreFile(f, sourceLabel){
     return true;
   }
   // RAM full — check for eviction
-  const evictable=S.deckRAM.filter(x=>!x.preloaded&&!x.contractTarget).sort((a,b)=>(a.credValue||0)-(b.credValue||0));
+  const evictable=S.storage.filter(x=>!x.preloaded&&!x.contractTarget).sort((a,b)=>(a.credValue||0)-(b.credValue||0));
   const weakest=evictable[0];
   if(weakest&&(weakest.credValue||0)<val){
-    S.deckRAM=S.deckRAM.filter(x=>x.id!==weakest.id);
-    S.deckRAM.push(f);
+    S.storage=S.storage.filter(x=>x.id!==weakest.id);
+    S.storage.push(f);
     addLog(`${sourceLabel}: evicted ${fLabel(weakest)} (${weakest.credValue||0}₵) → ${fLabel(f)} (${val}₵)`,'lg');
     renderRunRAM();
     return true;
@@ -113,11 +113,11 @@ function tryStoreFile(f, sourceLabel){
 
 function reservedRAM(){
   // Count: preloaded files already in RAM + pending collect/exfil objectives not yet collected
-  const preloaded=S.deckRAM.filter(f=>f.preloaded).length;
+  const preloaded=S.storage.filter(f=>f.preloaded).length;
   const pending=(S.active||[]).reduce((n,ct)=>
     n+ct.objectives.filter(o=>!o.done&&!o.failed&&o.targetFile&&
       ['collect','collect_delete'].includes(o.action)&&
-      !S.deckRAM.some(f=>f.id===o.targetFile.id)
+      !S.storage.some(f=>f.id===o.targetFile.id)
     ).length, 0);
   return preloaded+pending;
 }
@@ -389,28 +389,28 @@ function autoDoObj(cell,ct,obj){
   if(a==='collect'||a==='collect_delete'){
     if(obj.targetFile){
       // Guarantee space — evict lowest-value non-preloaded non-contract file if needed
-      if(S.deckRAM.length>=S.deckRAMMax){
-        const evictable=S.deckRAM.filter(x=>!x.preloaded&&!x.contractTarget)
+      if(S.storage.length>=S.storageMax){
+        const evictable=S.storage.filter(x=>!x.preloaded&&!x.contractTarget)
           .sort((a,b)=>(a.credValue||0)-(b.credValue||0));
         if(evictable.length){
-          S.deckRAM=S.deckRAM.filter(x=>x.id!==evictable[0].id);
+          S.storage=S.storage.filter(x=>x.id!==evictable[0].id);
           addLog(`◉ Contract collect: evicted ${fLabel(evictable[0])} to make room`,'li');
         }
       }
-      if(S.deckRAM.length<S.deckRAMMax){
+      if(S.storage.length<S.storageMax){
         obj.targetFile.contractTarget=true; // mark so it's never evicted
-        S.deckRAM.push(obj.targetFile);
+        S.storage.push(obj.targetFile);
         if(a==='collect_delete'&&cell.files)cell.files=cell.files.filter(f=>f.id!==obj.targetFile.id);
         completeObj(ct,obj);
       }else addLog('RAM full — cannot complete collect objective','lw');
     }else{completeObj(ct,obj);}
   }else if(a==='delete'){if(cell.files)cell.files=cell.files.filter(f=>f.id!==obj.targetFile?.id);completeObj(ct,obj);}
-  else if(a==='upload'){const f=S.deckRAM.find(x=>x.id===obj.file?.id);if(f){S.deckRAM=S.deckRAM.filter(x=>x.id!==f.id);completeObj(ct,obj);}else addLog('Upload file missing','lw');}
+  else if(a==='upload'){const f=S.storage.find(x=>x.id===obj.file?.id);if(f){S.storage=S.storage.filter(x=>x.id!==f.id);completeObj(ct,obj);}else addLog('Upload file missing','lw');}
   else if(a==='activate'){cell.activated=true;cell.ioForContract=true;completeObj(ct,obj);}
   else if(a==='modify'||a==='backdoor'){
     if(a==='backdoor')cell.backdoor=true;
     // Remove the preloaded file used for modify once complete
-    if(a==='modify'&&obj.file)S.deckRAM=S.deckRAM.filter(f=>f.id!==obj.file.id);
+    if(a==='modify'&&obj.file)S.storage=S.storage.filter(f=>f.id!==obj.file.id);
     completeObj(ct,obj);
   }
   else if(a==='display'){
@@ -664,15 +664,15 @@ function buildGrid(){
   }));
   const tier=curTier();
   // Base pool — new node types added as tier increases
-  const npool=['RAM','IO','CPU','GPU','DATASTORE','COP','EMPTY','EMPTY','EMPTY'];
-  if(tier>=2) npool.push('RELAY');
-  if(tier>=3) npool.push('VAULT');
-  if(tier>=3) npool.push('PROXY');
-  if(tier>=4) npool.push('FIREWALL','FIREWALL');
-  if(tier>=5) npool.push('TERMINAL');
-  if(tier>=5) npool.push('ARCHIVE');
-  // More EMPTY at low tiers, fewer at high
-  for(let i=0;i<Math.max(0,4-tier);i++) npool.push('EMPTY');
+  // Node pool filtered by mesh distance (same rules as net layout)
+  const meshDist=(typeof meshDistanceCurrent==='function')?meshDistanceCurrent():0;
+  const npool=['RAM','IO','DATASTORE','EMPTY','EMPTY','EMPTY'];
+  if(meshDist>=1){ npool.push('CPU','COP'); }
+  if(meshDist>=2){ npool.push('GPU','RELAY'); }
+  if(meshDist>=3){ npool.push('FIREWALL','TERMINAL'); }
+  if(meshDist>=4){ npool.push('VAULT','PROXY','ARCHIVE'); }
+  // More EMPTY at low mesh distances
+  for(let i=0;i<Math.max(0,4-Math.floor(meshDist));i++) npool.push('EMPTY');
   const iceChance=Math.min(0.60,0.12+tier*0.05);
   const staticICE=availICE().filter(k=>!BASE_ICE[k]?.mobile&&k!=='GATEKEEPER');
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
@@ -825,6 +825,31 @@ function mkDatastoreFile(encrypted=false){
   const credValue=baseVal>0?Math.floor(baseVal*(0.6+curTier()*0.3)):0;
   return{id:uid(),type,identified:!encrypted,encrypted,preloaded:false,credValue};
 }
-function fLabel(f){if(f.type==='BLUEPRINT'||f.isBlueprint)return'BLUEPRINT';if(f.type==='ARCHIVE_DATA')return`ARCHIVE(${f.credValue}₵)`;return f.identified?`${f.type}:${f.id.slice(1,5).toUpperCase()}`:`FILE:${f.id.slice(1,7).toUpperCase()}${f.encrypted?'[ENC]':''}`;}
+// Flavored file name pools per type
+const FILE_NAME_POOLS={
+  CREDPACK: ['slush_fund','wire_transfer','ghost_account','dark_dividend','shadow_bonus','laundered_pay','overflow_cache','black_ledger','hidden_reserve','ghost_wage'],
+  CORPDATA: ['org_chart','board_minutes','acquisition_brief','liability_report','merger_draft','executive_memo','audit_suppression','shell_manifest','asset_list','restructure_plan'],
+  KEYFILE:  ['master_key','auth_bypass','root_token','admin_seed','skeleton_cert','vault_cipher','ghost_credential','back_door_key','override_hash','shadow_cert'],
+  PAYLOAD:  ['trojan_payload','exploit_bundle','zero_day_kit','viral_package','cascade_trigger','dormant_agent','sleeper_code','worm_fragment','rootkit_seed','logic_bomb'],
+  MANIFEST: ['shipment_log','cargo_index','route_map','delivery_slip','import_record','transit_log','holding_manifest','stockpile_index','supply_chain','distribution_map'],
+  SYSLOG:   ['error_log','crash_dump','null_trace','dead_packet','orphan_process','garbage_heap','failed_auth','timeout_record','noise_packet','orphan_thread'],
+  DISPLAY:  ['broadcast_feed','surveillance_reel','ad_intercept','signal_capture','live_feed','media_splice','comm_intercept','network_cast','promo_inject','data_burst'],
+  BLUEPRINT:['blueprint'],
+  ARCHIVE_DATA:['archive_entry'],
+};
+
+function fLabel(f){
+  if(f.type==='BLUEPRINT'||f.isBlueprint) return 'BLUEPRINT';
+  if(f.type==='ARCHIVE_DATA') return `archive_entry(${f.credValue}₵)`;
+  if(!f.identified) return `file:${f.id.slice(1,7).toUpperCase()}${f.encrypted?'[ENC]':''}`;
+  // Generate a stable flavored name from the file's uid
+  const pool = FILE_NAME_POOLS[f.type] || ['unknown_data'];
+  const seed = parseInt(f.id.slice(1,5),16)||0;
+  const name = pool[seed % pool.length];
+  // Add a short hash suffix for uniqueness
+  const suffix = f.id.slice(-3).toUpperCase();
+  return `${name}.${suffix}${f.encrypted?'[ENC]':''}`;
+}
+
 
 // CONTRACTS

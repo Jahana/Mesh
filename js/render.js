@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.4 \u2014 Help & Changes";
+  const title="MESH v0.5 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -383,7 +383,20 @@ function showPatchNotes(){
 }
 
 function showTab(name){
-  const names=['run','deck','market','craft','inv','progression','prestige','save'];
+  // Show mesh tab if traversal unlocked
+  const meshTabEl=document.getElementById('tab-mesh');
+  if(meshTabEl&&S.mesh?.traversalUnlocked) meshTabEl.style.display='';
+  // Always refresh context nav when switching tabs
+  renderContextNav();
+  // Update craft tab availability indicator
+  const meshDist=(typeof meshDistanceCurrent==='function')?meshDistanceCurrent():0;
+  const craftBtn=document.getElementById('tab-craft');
+  if(craftBtn){
+    const locked=meshDist<4&&S.mesh?.unlocked;
+    craftBtn.style.opacity=locked?'0.4':'';
+    craftBtn.title=locked?`Crafting unlocks at mesh distance 4 (you: ${meshDist.toFixed(1)})`:'';
+  }
+  const names=['run','mesh','deck','market','craft','inv','progression','prestige','save'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.rpanel').forEach(p=>p.classList.remove('active'));
   const panel=document.getElementById('tab-'+name+'-content');
@@ -391,11 +404,25 @@ function showTab(name){
   if(name==='market')renderMarket();
   if(name==='deck')renderDeck();
   if(name==='inv')renderInventory();
-  if(name==='craft')renderCraft();
+  if(name==='craft'){
+    const meshDist = (typeof meshDistanceCurrent==='function') ? meshDistanceCurrent() : 0;
+    const craftUnlocked = meshDist >= 4 || !S.mesh?.unlocked;
+    if(!craftUnlocked){
+      const el=document.getElementById('tab-craft-content');
+      if(el)el.innerHTML=`<div style="padding:16px;font-size:9px;color:#2a5a3a;font-family:'Share Tech Mono',monospace;text-align:center">
+        <div style="font-size:20px;margin-bottom:8px">⚙</div>
+        Crafting unlocks at mesh distance 4.<br>
+        <span style="font-size:7px;color:#1a4a2a">Current distance: ${meshDist.toFixed(1)}</span>
+      </div>`;
+      return;
+    }
+    renderCraft();
+  }
   if(name==='progression')renderProgressionScreen();
   if(name==='prestige')renderPrestigeScreen();
   if(name==='save')renderSaveScreen();
   if(name==='ops')renderOps();
+  if(name==='mesh')renderMeshView();
   if(name==='ach')renderAchievements();
   if(name==='stats')renderStats();
 }
@@ -415,7 +442,6 @@ function renderSaveScreen(){
       body=`<div class="ss-name">${data.slotName}${isAuto?' <span style="font-size:8px;color:#40aaff">[AUTO]</span>':''}</div>
         <div class="ss-meta">
           <span class="ss-m">Level <span>${data.level}</span></span>
-          <span class="ss-m">Prestige <span>${data.prestige}</span></span>
           <span class="ss-m">Cred <span>${(data.cred||0).toLocaleString()}₵</span></span>
           <span class="ss-m">Runs <span>${data.totalRuns||0}</span></span>
         </div>
@@ -437,12 +463,44 @@ function renderSaveScreen(){
   }
 }
 
+function renderContextNav(){
+  // Shows nav context: where you came from, how to get back
+  let navEl = document.getElementById('context-nav');
+  if(!navEl) return;
+
+  const inNet = !!S.mesh?.currentNet;
+  const meshUnlocked = S.mesh?.unlocked;
+  const inRun = S.running;
+
+  let html = '';
+
+  // Always show HOME button when game layout is visible
+  html += `<button class="refresh-btn" style="color:#40aaff;border-color:#1a3a6a"
+    onclick="if(typeof showHomeScreen==='function'){if(typeof renderHomeBackButton==='function')renderHomeBackButton(false);showHomeScreen();renderHomeScreen();}">⌂ HOME</button>`;
+
+  if(inNet && !inRun){
+    // In net map — show net address
+    const nk = typeof currentNetKey==='function' ? currentNetKey() : '';
+    html += `<span style="font-size:8px;color:#2a5a3a;font-family:'Share Tech Mono',monospace">⬡ NET ${nk}</span>`;
+    html += `<button class="refresh-btn" style="color:#ff8040;border-color:#6a3000"
+      onclick="if(typeof jackOutFromNet==='function')jackOutFromNet()">⏏ JACK OUT</button>`;
+  } else if(inRun){
+    html += `<span style="font-size:8px;color:#40c060;font-family:'Share Tech Mono',monospace">▶ RUN ACTIVE</span>`;
+    html += `<button class="refresh-btn" style="color:#ff4040;border-color:#6a1a1a"
+      onclick="if(typeof jackOut==='function')jackOut()">⏏ JACK OUT</button>`;
+  } else if(meshUnlocked){
+    html += `<button class="refresh-btn" style="color:#40ff80;border-color:#2a8a3a;background:#0a1a0e;font-family:'Orbitron',monospace;letter-spacing:1px;padding:3px 10px"
+      onclick="if(typeof jackInToMesh==='function')jackInToMesh()">⬡ JACK IN</button>`;
+  }
+
+  navEl.innerHTML = html;
+}
+
 function renderTopBar(){
   const iMax=maxInt();const tier=curTier();
   document.getElementById('s-cred').textContent=S.cred.toLocaleString();
   document.getElementById('s-lvl').textContent=S.level;
   document.getElementById('s-xp').textContent=`${S.xp}/${xpToLvl(S.level)}`;
-  document.getElementById('s-pres').textContent=S.prestige;
   document.getElementById('s-tier').textContent=tier;
   document.getElementById('s-int').textContent=`${S.integrity}/${iMax}`;
   // Program RAM: use snapshot during run so display is stable
@@ -481,8 +539,38 @@ function renderTopBar(){
   }
 }
 
+
+
+function updateLayoutForTier(){
+  const cols=S.cols||3;
+  // Grid needs: 54px per cell + 2px gap between + 10px padding inside grid-section
+  const gridNeed=cols*56+20;
+  // Contract board above grid needs ~320px minimum
+  // left-col = max of contract board min and grid need
+  const leftW=Math.max(320, gridNeed);
+  // right-panel: fixed 300px minimum, let it flex if space allows
+  const rp=document.getElementById('right-panel');
+  const lc=document.getElementById('left-col');
+  if(lc)lc.style.width=leftW+'px';
+  // right-panel stays at its CSS-defined width — don't override it
+  // The layout will scroll horizontally if total exceeds viewport (that's fine)
+}
+
+function centerGridOnPlayer(){
+  const scroll = document.getElementById('grid-scroll-main');
+  const grid   = document.getElementById('grid');
+  if(!scroll || !grid || !S.player) return;
+  const CELL_SIZE = 56; // 54px cell + 2px gap
+  const playerLeft = S.player.c * CELL_SIZE;
+  const playerTop  = S.player.r * CELL_SIZE;
+  // Scroll so player cell is centered in the scroll container
+  scroll.scrollLeft = playerLeft - (scroll.clientWidth  / 2) + (CELL_SIZE / 2);
+  scroll.scrollTop  = playerTop  - (scroll.clientHeight / 2) + (CELL_SIZE / 2);
+}
+
 function renderGrid(){
   const el=document.getElementById('grid');if(!el||!S.grid.length)return;
+  updateLayoutForTier();
   el.style.gridTemplateColumns=`repeat(${S.cols},54px)`;el.innerHTML='';
   const iceReveal=attachEffect('ice_reveal')>0;
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
@@ -636,7 +724,7 @@ function renderBoard(){
   if(!window._boardSort)window._boardSort='reward';
   const sortBar=document.createElement('div');
   sortBar.style.cssText='display:flex;gap:4px;margin-bottom:5px;flex-shrink:0;';
-  sortBar.innerHTML=['reward','diff','subfac'].map(s=>
+  sortBar.innerHTML=['reward','diff','faction'].map(s=>
     `<button class="spd-btn ${window._boardSort===s?'active':''}" onclick="window._boardSort='${s}';renderBoard()" style="flex:1;font-size:7px">${s==='reward'?'₵ REWARD':s==='diff'?'DIFF':'FACTION'}</button>`
   ).join('');
   el.appendChild(sortBar);
@@ -645,23 +733,22 @@ function renderBoard(){
   let sorted=[...S.board];
   if(window._boardSort==='reward')sorted.sort((a,b)=>b.reward.cred-a.reward.cred);
   else if(window._boardSort==='diff')sorted.sort((a,b)=>b.diff-a.diff);
-  else if(window._boardSort==='subfac')sorted.sort((a,b)=>(a.subfac||'').localeCompare(b.subfac||''));
+  else if(window._boardSort==='faction')sorted.sort((a,b)=>(a.flavor||'').localeCompare(b.flavor||''));
   sorted.forEach(ct=>{
     const div=document.createElement('div');div.className='cc'+(ct.taken?' taken':'');
     const flavorColors={CORPORATE:'#6080c0',CRIMINAL:'#c08040',ANARCHIST:'#c04040',NEUTRAL:'#60a060'};
     const fcol=flavorColors[ct.flavor]||'#60a060';
-    const sf=ct.subfac?SUBFACTIONS[ct.subfac]:null;
-    const sfColor=sf?.color||fcol;
-    const sfName=sf?.name||ct.flavor;
-    const sfRep=ct.subfac?(S.subrep?.[ct.subfac]||0):0;
-    const parentKey=sf?sf.parent:null;
+    const sfName=ct.subfacName||ct.companyName||'';
+    const sfColor=fcol;
+    // Rep check uses parent faction rep (global aggregate from all nets)
+    const parentKey=ct.faction||flavorToRepKey(ct.flavor)||null;
     const parentRep=parentKey?S.rep[parentKey]||0:0;
-    const effectiveRep=Math.max(sfRep,parentRep);
+    const effectiveRep=parentRep;
     const repLocked=ct.repReq>0&&effectiveRep<ct.repReq;
     div.style.opacity=repLocked?'0.4':'1';
     div.innerHTML=`<div class="cc-diff" style="color:${['','#60c080','#80a0ff','#ff8040','#ff2040'][ct.diff]||'#60c080'}">${['','◈','◈◈','◈◈◈','☠'][ct.diff]||'◈'}</div>
       <div style="font-size:7px;font-family:'Orbitron',monospace;color:${sfColor};margin-bottom:2px">${sfName}</div>
-      <div style="font-size:6px;color:#1a3a1a;margin-bottom:2px">${repLocked?'<span style="color:#c04040">🔒 Needs '+ct.repReq+' rep</span>':sfRep+' rep'}</div>
+      <div style="font-size:6px;color:#1a3a1a;margin-bottom:2px">${repLocked?'<span style="color:#c04040">🔒 Needs '+ct.repReq+' rep</span>':parentRep+' rep'}</div>
       <div class="cc-body"><div class="cc-name">${ct.name}</div><div class="cc-objs">${ct.objectives.map(o=>`▸ ${o.desc}`).join('<br>')}</div>
       <div class="cc-meta">
           <span class="ctag tg">₵${ct.reward.cred}${ct.condition?'+':''}${ct.reward.bonusCred>0?ct.reward.bonusCred:''}</span>
@@ -684,12 +771,15 @@ function renderSelPanel(){
 
 function renderPrepRAM(){
   // File RAM (deckRAM) — shown in run sidebar only, NOT the topbar RAM stat
-  const used=S.deckRAM.length,max=S.deckRAMMax;
-  const rl=document.getElementById('run-ram-lbl');if(rl)rl.textContent=`${used}/${max}`;
-  const rb=document.getElementById('run-ram-bar');if(rb)rb.style.width=`${(used/max)*100}%`;
+  const used=S.storage.length,max=S.storageMax;
+  const stor=S.storage?.length||0,storMax=storageMax();
+  const rl=document.getElementById('run-ram-lbl');if(rl)rl.textContent=`${stor}/${storMax}`;
+  const rl2=document.getElementById('setup-ram-lbl');if(rl2)rl2.textContent=`${stor}/${storMax}`;
+  const rb=document.getElementById('run-ram-bar');if(rb)rb.style.width=`${Math.round(stor/storMax*100)}%`;
+  const rb2=document.getElementById('setup-ram-bar');if(rb2)rb2.style.width=`${Math.round(stor/storMax*100)}%`;
   const rf=document.getElementById('run-files');
-  if(rf)rf.innerHTML=S.deckRAM.length===0?'<span style="color:#1a3a1a;font-size:8px">empty</span>':
-    S.deckRAM.map(f=>`<div style="font-size:8px;color:#60aaa0">${fLabel(f)}</div>`).join('');
+  if(rf)rf.innerHTML=S.storage.length===0?'<span style="color:#1a3a1a;font-size:8px">empty</span>':
+    S.storage.map(f=>`<div style="font-size:8px;color:#60aaa0">${fLabel(f)}</div>`).join('');
 }
 
 function renderDeck(){
@@ -715,7 +805,6 @@ ${active?'<div style="font-size:8px;color:#40ff80;margin-top:3px">● ACTIVE</di
   sinkDiv.style.cssText='margin-top:8px;padding:6px;background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;';
   sinkDiv.innerHTML='<div class="ptitle" style="font-size:8px;margin-bottom:5px">SERVICES</div>'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap">'
-    +`<button class="buy-btn" onclick="buyBoardRefresh()" title="Refresh contract board">↺ Refresh (${CREDIT_SINKS.board_refresh.cost}₵)</button>`
     +`<button class="buy-btn" onclick="buyIntel()" title="Reveal ICE on next run">⊙ Intel (${CREDIT_SINKS.intel.cost}₵)</button>`
     +`<button class="buy-btn" onclick="buyTraceScrub()" title="Remove 20% trace">◎ Scrub (${CREDIT_SINKS.trace_scrub.cost}₵)</button>`
     +'</div>';
@@ -1055,17 +1144,28 @@ function renderInventory(){
   document.getElementById('inv-ct').textContent=`(${S.inventory.length})`;
   el.innerHTML='';
   const used=ramUsed(),max=ramMax();
+  const stor=S.storage?.length||0, storMax=storageMax();
 
   // RAM usage bar
   const ramDiv=document.createElement('div');
   ramDiv.style.cssText='margin-bottom:8px;';
   ramDiv.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:8px;color:#3a6a3a;margin-bottom:3px">
-    <span>RAM</span><span style="color:#40aaff">${used}/${max}</span>
+    <span>RAM (programs)</span><span style="color:#40aaff">${used}/${max}</span>
   </div>
   <div style="height:4px;background:#1a2a1a;border-radius:2px;overflow:hidden">
     <div style="height:100%;width:${Math.round(used/max*100)}%;background:#40aaff;border-radius:2px"></div>
   </div>`;
+  // Storage usage bar
+  const storDiv=document.createElement('div');
+  storDiv.style.cssText='margin-bottom:8px;';
+  storDiv.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:8px;color:#3a6a3a;margin-bottom:3px">
+    <span>Storage (files)</span><span style="color:#40ffaa">${stor}/${storMax}</span>
+  </div>
+  <div style="height:4px;background:#1a2a1a;border-radius:2px;overflow:hidden">
+    <div style="height:100%;width:${Math.round(stor/storMax*100)}%;background:#40ffaa;border-radius:2px"></div>
+  </div>`;
   el.appendChild(ramDiv);
+  el.appendChild(storDiv);
 
   // Group by category
   const groups={breaker:[],utility:[]};
@@ -1171,7 +1271,6 @@ function renderStats(){
     <div class="ptitle" style="margin-top:8px">Lifetime</div>
     ${row('Total cred earned',fmtNum(S.totalCred)+'₵')}
     ${row('Current level','Lv '+S.level)}
-    ${row('Prestige','P'+S.prestige)}
   `;
 }
 
@@ -1209,8 +1308,6 @@ function renderProgressionScreen(){
   const el=document.getElementById('prog-inner');if(!el)return;
   const lvl=S.level,xp=S.xp,nXP=xpToLvl(lvl),pct=Math.round((xp/nXP)*100);
   const tier=curTier(),iMax=maxInt();
-  const nextP=prestigeThresholds.find(t=>t>lvl);
-  const presReady=canPrestige();
   const deck=hwdef();
   const tg=TIER_GRIDS[Math.min(tier,TIER_GRIDS.length)-1];
 
@@ -1220,47 +1317,23 @@ function renderProgressionScreen(){
   html+=`<div class="xp-section">
     <div class="xp-header"><span class="xp-level">LVL ${lvl}</span><span class="xp-next">${xp.toLocaleString()}/${nXP.toLocaleString()} XP</span></div>
     <div class="xp-bar-wrap"><div class="xp-bar" style="width:${pct}%"></div></div>
-    <div style="display:flex;justify-content:space-between;font-size:9px;color:#3a6a3a;margin-top:3px"><span>Prestige ${S.prestige}</span><span>T${tier} · ${tg[0]}×${tg[1]}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#3a6a3a;margin-top:3px"><span>T${tier} · ${tg[0]}×${tg[1]}</span></div>
     ${S.permIntLoss>0?`<div style="font-size:8px;color:#c04040;margin-top:3px">⚠ Perm INT loss: -${S.permIntLoss}</div>`:''}
     ${S.traceCarry>0?`<div style="font-size:8px;color:#aa6020;margin-top:2px">◎ Trace carry: ${S.traceCarry}%</div>`:''}
   </div>`;
 
   // Prestige
-  html+=`<div class="prestige-section"><div class="ps-title">PRESTIGE · P${S.prestige}/10</div>`;
-  html+=`<div style="font-size:8px;color:#6a5a00;margin-bottom:6px">${presReady?'★ Prestige available now!':'Next at Lv '+(nextP||'—')+' (current: '+lvl+')'}</div>`;
-  const pBtns=prestigeThresholds.map((t,i)=>{
-    const done=S.prestige>i,active=S.prestige===i&&lvl>=t,locked=!done&&!active;
-    const col=done?'#40ff80':active?'#ffdd40':'#1a4a1a';
-    const bg=done?'#0a1a0a':active?'#1a1500':'transparent';
-    return `<span style="font-size:7px;padding:2px 5px;border-radius:2px;border:1px solid ${col};color:${col};background:${bg}">${done?'★':'○'} P${i+1} Lv${t}</span>`;
-  });
-  html+=`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${pBtns.join('')}</div>`;
-  html+=`<button class="prestige-btn" ${presReady?'':'disabled'} onclick="triggerPrestige()">${presReady?'★ PRESTIGE NOW':'Prestige at Lv'+(nextP||'???')}</button></div>`;
+  // Prestige removed — progression driven by mesh depth
 
   // Stats
   html+=`<div class="stats-grid">
-    <div class="stat-card"><div class="sc-label">MAX INT</div><div class="sc-value">${iMax}${S.permIntLoss?` <span style="color:#c04040;font-size:8px">-${S.permIntLoss}</span>`:''}</div><div class="sc-sub">HW+${deck?.integrity||0} P+${S.prestige}</div></div>
+    <div class="stat-card"><div class="sc-label">MAX INT</div><div class="sc-value">${iMax}${S.permIntLoss?` <span style="color:#c04040;font-size:8px">-${S.permIntLoss}</span>`:''}</div><div class="sc-sub">HW+${deck?.integrity||0}</div></div>
     <div class="stat-card"><div class="sc-label">TIER</div><div class="sc-value">T${tier}</div><div class="sc-sub">${tg[0]}×${tg[1]} grid</div></div>
     <div class="stat-card"><div class="sc-label">TOTAL RUNS</div><div class="sc-value">${S.totalRuns}</div><div class="sc-sub">All time</div></div>
     <div class="stat-card"><div class="sc-label">DECK</div><div class="sc-value" style="font-size:8px;color:${deck?.color||'#60c080'};line-height:1.3">${deck?.name||'—'}</div><div class="sc-sub">RAM ${deck?.ram||8}·Slots ${deck?.slots||1}</div></div>
   </div>`;
 
-  // Prestige tree (which ICE/programs have been unlocked)
-  html+=`<div style="background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:8px;margin-top:6px">
-    <div class="ptitle">Prestige Unlocks</div>`;
-  PRESTIGE_TREE.forEach(p=>{
-    const unlocked=S.prestige>=p.n;
-    const next=!unlocked&&S.prestige===p.n-1;
-    html+=`<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #0d1a0d;opacity:${unlocked?1:next?0.7:0.3}">
-      <span style="font-size:16px;width:22px;text-align:center">${unlocked?'★':next?'○':'·'}</span>
-      <div style="flex:1">
-        <div style="font-size:8px;color:${unlocked?'#40ff80':next?'#ffdd40':'#1a3a1a'}">P${p.n} — ${p.iceName} · ${p.progName}</div>
-        <div style="font-size:7px;color:#2a4a2a">${p.iceDesc}</div>
-        <div style="font-size:7px;color:#2a3a5a">${p.progDesc}</div>
-      </div>
-    </div>`;
-  });
-  html+=`</div>`;
+  // Prestige tree removed
 
   // Rep section
   html+=`<div style="background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:8px;margin-top:6px" id="rep-section-inner"></div>`;
@@ -1270,9 +1343,19 @@ function renderProgressionScreen(){
     html+=`<div style="background:#0a1218;border:1px solid #1a2a1a;border-radius:4px;padding:8px;margin-top:6px">
       <div class="ptitle">Recent Runs</div>
       ${S.runHistory.map(r=>{
-  const sf=r.subfac?SUBFACTIONS[r.subfac]:null;
-  const sfColor=sf?.color||'#3a6a3a';
-  const sfName=sf?.name||r.flavor||'';
+  // Resolve company name from net state if subfacName not stored
+  let sfName = r.subfacName || '';
+  if(!sfName && r.subfac){
+    // Try to find the company name from visited nets
+    const nets = S.mesh?.visitedNets || [];
+    for(const ns of nets){
+      const co = Object.values(ns.companies||{}).flat().find(c=>c.key===r.subfac);
+      if(co){ sfName = co.name; break; }
+    }
+    if(!sfName) sfName = r.subfac; // last resort: show key
+  }
+  const flavorColors2={CORPORATE:'#6080c0',CRIMINAL:'#c08040',ANARCHIST:'#c04040',NEUTRAL:'#60a060'};
+  const sfColor=flavorColors2[r.flavor]||'#3a6a3a';
   return`<div class="run-row">
     <span class="rr-tier">T${r.tier}</span>
     <span class="rr-result ${r.success?'rr-win':'rr-loss'}">${r.success?'DONE':'BOOT'}</span>
@@ -1309,39 +1392,28 @@ function renderProgressionScreen(){
         +(elite?'<div style="font-size:8px;color:#2a5a2a;margin-top:3px">★ '+(REP_PERK[fac]||'')+'</div>':'')
         +'</div>';
     }).join('');
-    // Sub-faction rep breakdown grouped by parent
-    const sfHtml=Object.entries(SUBFAC_BY_PARENT).map(([parentKey,sfKeys])=>{
-      const parentDef=PARENT_FACTIONS[parentKey];
-      const parentColors={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060'};
-      const pcol=parentColors[parentKey]||'#60a060';
-      const sfRows=sfKeys.map(sfk=>{
-        const sf=SUBFACTIONS[sfk];
-        const r=S.subrep?.[sfk]||0;
-        if(r===0)return''; // hide uncontacted subfactions
-        const sfTier=r>=4000?'Legend':r>=1500?'Elite':r>=500?'Trusted':r>=100?'Known':'Unknown';
-        const sfTierCol=r>=4000?'#ffaa00':r>=1500?'#a040ff':r>=500?'#4080ff':r>=100?'#40c060':'#3a6a3a';
-        const nextThresh=r<100?100:r<500?500:r<1500?1500:r<4000?4000:null;
-        const prevThresh=r>=4000?1500:r>=1500?500:r>=500?100:0;
-        const pct=nextThresh?Math.round(((r-prevThresh)/(nextThresh-prevThresh))*100):100;
-        return `<div style="padding:4px 0 4px 8px;border-left:2px solid ${sf?.color||pcol}22">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:8px;color:${sf?.color||pcol};flex:1">${sf?.name||sfk}</span>
-            <span style="font-size:7px;color:${sfTierCol}">${sfTier}</span>
-            <span style="font-size:8px;color:#40c060;min-width:36px;text-align:right">${r}</span>
-          </div>
-          <div style="height:3px;background:#1a2a1a;border-radius:2px;margin-top:3px">
-            <div style="height:100%;width:${pct}%;background:${sf?.color||pcol};border-radius:2px;opacity:0.8"></div>
-          </div>
-          ${nextThresh?`<div style="font-size:6px;color:#1a3a1a;margin-top:1px">${r}/${nextThresh} → ${r>=1500?'Legend':r>=500?'Elite':r>=100?'Trusted':'Known'}</div>`:''}
-        </div>`;
-      }).filter(Boolean).join('');
-      if(!sfRows)return''; // skip parents with no contacted subfactions
-      return `<div style="margin-bottom:10px">
-        <div style="font-size:8px;color:${pcol};font-family:'Orbitron',monospace;letter-spacing:1px;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid ${pcol}33">${parentDef?.name||parentKey}</div>
-        ${sfRows}
-      </div>`;
-    }).filter(Boolean).join('');
-
+    // Per-net company rep — show nets visited and their companies
+    const sfHtml=(()=>{
+      const nets=S.mesh?.visitedNets||[];
+      if(!nets.length) return '<div style="font-size:8px;color:#1a4a2a;padding:8px">No nets visited yet.</div>';
+      return nets.filter(ns=>(ns.rep&&Object.keys(ns.rep).length>0)).map(ns=>{
+        const nk=typeof netKey==='function'?netKey(ns.x,ns.y):'?';
+        const companies=Object.values(ns.companies||{}).flat();
+        return '<div style="margin-bottom:10px">'
+          +'<div style="font-size:8px;color:#2a5a3a;margin-bottom:4px;font-family:Orbitron,monospace">NET '+nk+'</div>'
+          +companies.map(co=>{
+            const r=ns.rep?.[co.key]||0; if(!r)return'';
+            const col={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060',gov:'#a0a040'}[co.faction]||'#60a060';
+            const tier=r>=4000?'Legend':r>=1500?'Elite':r>=500?'Trusted':r>=100?'Known':'Unknown';
+            return `<div style="padding:3px 0 3px 8px;border-left:2px solid ${col}44;margin-bottom:2px;display:flex;gap:8px;align-items:center">
+              <span style="font-size:8px;color:${col};flex:1">${co.name}</span>
+              <span style="font-size:7px;color:#2a5a2a">${tier}</span>
+              <span style="font-size:8px;color:#40c060">${r}</span>
+            </div>`;
+          }).filter(Boolean).join('')
+          +'</div>';
+      }).join('') || '<div style="font-size:8px;color:#1a4a2a;padding:8px">No rep earned yet.</div>';
+    })();
     repEl2.innerHTML='<div class="ptitle">Faction Reputation</div>'+repHtml
       +(sfHtml?'<div class="ptitle" style="margin-top:10px">Sub-Faction Rep</div>'+sfHtml:'');
   }
@@ -1353,7 +1425,7 @@ function renderPrestigeScreen(){
     <div class="pw-title">★ PRESTIGE SYSTEM</div>
     <div class="pw-body"><span class="pw-loses">Prestige wipes everything.</span> Cred, programs, hardware, level, rep — all reset to zero.<br><br>
     <span class="pw-keeps">Each prestige permanently unlocks a new ICE type and program type for all future runs.</span></div>
-    ${S.level>=20?`<button class="prestige-btn" onclick="triggerPrestige()">★ PRESTIGE NOW</button>`:`<button class="prestige-btn" disabled>Prestige at Lv${prestigeThresholds.find(t=>t>S.level)||"???"} (you: Lv${S.level})</button>`}
+
   </div>
   <div style="font-size:8px;color:#3a3a6a;margin-bottom:8px">Prestige wipes cred/programs/hardware. Level and rep are kept. Unlocks stack permanently.</div>
   ${PRESTIGE_TREE.map(p=>{
@@ -1522,12 +1594,12 @@ function showRunSummary(){
   if(s.repChanges&&s.repChanges.length>0){
     html+=`<div class="sum-section"><div class="sum-label">Reputation</div>`;
     s.repChanges.forEach(rc=>{
-      const sf=rc.subfac?SUBFACTIONS[rc.subfac]:null;
-      const sfCol=sf?.color||'#40c060';
+      const sfCol='#40c060';
+      const sfDisplayName=rc.subfacName||rc.subfac||'';
       const parentTier=rc.fac?repTierName(rc.fac):'Unknown';
       const newParentRep=rc.fac?S.rep[rc.fac]||0:0;
-      if(sf){
-        html+=`<div class="sum-row"><span class="sum-key" style="color:${sfCol}">${sf.name}</span><span class="sum-val good">+${rc.subGain||rc.gain}</span></div>`;
+      if(sfDisplayName){
+        html+=`<div class="sum-row"><span class="sum-key" style="color:${sfCol}">${sfDisplayName}</span><span class="sum-val good">+${rc.subGain||rc.gain}</span></div>`;
       }
       html+=`<div class="sum-row"><span class="sum-key">${(rc.fac||'').toUpperCase()} <span style="color:#2a5a2a;font-size:7px">(${parentTier} · ${newParentRep})</span></span><span class="sum-val good">+${rc.gain}</span></div>`;
       if(rc.rivalLoss&&rc.rival){
@@ -1618,10 +1690,10 @@ function triggerTrap(cell){
       else raiseAlert(1); // revealed: just raises alert instead
       break;
     case 'DATA_BOMB':{
-      const targets=S.deckRAM.filter(f=>!f.preloaded);
+      const targets=S.storage.filter(f=>!f.preloaded);
       if(targets.length>0&&!revealed){
         const victim=targets[Math.floor(Math.random()*targets.length)];
-        S.deckRAM=S.deckRAM.filter(f=>f.id!==victim.id);
+        S.storage=S.storage.filter(f=>f.id!==victim.id);
         addLog(`◉ DATA BOMB [${cell.r},${cell.c}] — destroyed ${fLabel(victim)}`,'lb');
       }else if(revealed){
         addLog(`◉ DATA BOMB [${cell.r},${cell.c}] (seen) — disarmed`,'lg');

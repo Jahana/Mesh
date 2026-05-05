@@ -1,4 +1,4 @@
-// MESH v0.4 — data.js
+// MESH v0.5 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -65,7 +65,8 @@ function mkDeck(mfr, rarity, variant){
   const ri=['common','uncommon','rare','legendary','mythic'].indexOf(rarity); // 0-4
   // Base stats — manufacturer specialty gets top of range
   const isSpec=(stat)=>m.specialty===stat;
-  const ram   =isSpec('ram')      ?(8+ri*4+ri*2)  :(8+ri*2);          // Haas: 8,14,20,26,32 others: 8,10,12,14,16
+  const ram   =isSpec('ram')      ?(8+ri*4+ri*2)  :(8+ri*2);          // Hexfield: 8,14,20,26,32 others: 8,10,12,14,16
+  const storage=isSpec('storage')  ?(12+ri*4+ri*2) :(8+ri*2);          // Novatek: 12,18,24,30,36 others: 8,10,12,14,16
   const integrity=isSpec('integrity')?(ri*5)       :(ri*2);            // Ironwall: 0,5,10,15,20 others: 0,2,4,6,8
   const spd   =isSpec('speed')    ?(1+ri)          :Math.max(1,ri);    // Silk Corp: 1,2,3,4,5 others: 0,1,2,3,4
   const slots =isSpec('slots')    ?(1+ri)          :Math.max(1,Math.ceil(ri/1.5)); // Novatek: 1,2,3,4,5 others: 1,1,2,3,4
@@ -107,25 +108,25 @@ const STARTER_DECK=HARDWARE.find(h=>h.mfr==='haas'&&h.rarity==='common');
 // (Appended to PDEFS array after load, or defined inline here for reference)
 const PDEFS_EXTENDED=[
   // Breakers Mk4 (P1)
-  {id:'fracter_4',  name:'Fracter Mk4',  icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],    tier:4,str:14,mem:4,cost:1800,faction:'gen',  prestigeReq:1,desc:'Breaks Barrier ICE. STR 14.'},
-  {id:'decoder_4',  name:'Decoder Mk4',  icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'], tier:4,str:14,mem:4,cost:1800,faction:'corp', prestigeReq:1,desc:'Breaks Gatekeeper. STR 14.'},
-  {id:'killer_4',   name:'Killer Mk4',   icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:4,str:14,mem:4,cost:2000,faction:'crim', prestigeReq:1,desc:'Breaks Guardian/Hunter. STR 14.'},
+  {id:'fracter_4',minMeshDist:8,  name:'Fracter Mk4',  icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],    tier:4,str:14,mem:4,cost:1800,faction:'gen',  prestigeReq:1,desc:'Breaks Barrier ICE. STR 14.'},
+  {id:'decoder_4',minMeshDist:8,  name:'Decoder Mk4',  icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'], tier:4,str:14,mem:4,cost:1800,faction:'corp', prestigeReq:1,desc:'Breaks Gatekeeper. STR 14.'},
+  {id:'killer_4',minMeshDist:8,   name:'Killer Mk4',   icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:4,str:14,mem:4,cost:2000,faction:'crim', prestigeReq:1,desc:'Breaks Guardian/Hunter. STR 14.'},
   // Utility Mk2 (P1)
-  {id:'soothe_3',   name:'Soothe v3',    icon:'≋',cat:'utility',tier:3,mem:2,cost:1200,faction:'corp', prestigeReq:1,passive:true,effect:'soothe',pressureRate:4,urgentRate:8,desc:'Reduces alert pressure. −4/tick idle, −8 when raised.'},
-  {id:'zap_3',      name:'Zap v3',       icon:'⚡',cat:'utility',tier:3,mem:3,cost:1500,faction:'anarch',prestigeReq:1,passive:true,effect:'zap',    power:3,            desc:'Pre-combat -3 ICE STR (passive).'}, 
-  {id:'scan_3',     name:'Scanner v3',   icon:'⊙',cat:'utility',tier:3,mem:2,cost:1400,faction:'gen',  prestigeReq:1,passive:true,effect:'scan',                       desc:'Scans+identifies all files on datastore arrival.'},
+  {id:'soothe_3',minMeshDist:4,   name:'Soothe v3',    icon:'≋',cat:'utility',tier:3,mem:2,cost:1200,faction:'corp', prestigeReq:1,passive:true,effect:'soothe',pressureRate:4,urgentRate:8,desc:'Reduces alert pressure. −4/tick idle, −8 when raised.'},
+  {id:'zap_3',minMeshDist:4,      name:'Zap v3',       icon:'⚡',cat:'utility',tier:3,mem:3,cost:1500,faction:'anarch',prestigeReq:1,passive:true,effect:'zap',    power:3,            desc:'Pre-combat -3 ICE STR (passive).'}, 
+  {id:'scan_3',minMeshDist:4,     name:'Scanner v3',   icon:'⊙',cat:'utility',tier:3,mem:2,cost:1400,faction:'gen',  prestigeReq:1,passive:true,effect:'scan',                       desc:'Scans+identifies all files on datastore arrival.'},
   // Breakers Mk5 (P3)
-  {id:'fracter_5',  name:'Fracter Mk5',  icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],    tier:5,str:20,mem:5,cost:5000,faction:'gen',  prestigeReq:3,desc:'Breaks Barrier ICE. STR 20.'},
-  {id:'decoder_5',  name:'Decoder Mk5',  icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'], tier:5,str:20,mem:5,cost:5000,faction:'corp', prestigeReq:3,desc:'Breaks Gatekeeper. STR 20.'},
-  {id:'killer_5',   name:'Killer Mk5',   icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:5,str:20,mem:5,cost:5500,faction:'crim', prestigeReq:3,desc:'Breaks Guardian/Hunter. STR 20.'},
+  {id:'fracter_5',minMeshDist:16,  name:'Fracter Mk5',  icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],    tier:5,str:20,mem:5,cost:5000,faction:'gen',  prestigeReq:3,desc:'Breaks Barrier ICE. STR 20.'},
+  {id:'decoder_5',minMeshDist:16,  name:'Decoder Mk5',  icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'], tier:5,str:20,mem:5,cost:5000,faction:'corp', prestigeReq:3,desc:'Breaks Gatekeeper. STR 20.'},
+  {id:'killer_5',minMeshDist:16,   name:'Killer Mk5',   icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:5,str:20,mem:5,cost:5500,faction:'crim', prestigeReq:3,desc:'Breaks Guardian/Hunter. STR 20.'},
   // Utility advanced (P2-3)
   {id:'armor_2',    name:'Armor v2',     icon:'◫',cat:'utility',tier:2,mem:3,cost:2000,faction:'gen',  prestigeReq:2,passive:true,effect:'armor',   power:2,            desc:'Absorbs 2 retaliation hits per combat.'},
   {id:'deceive_3',  name:'Deceive v3',   icon:'⊘',cat:'utility',tier:3,mem:3,cost:2500,faction:'crim', prestigeReq:2,passive:true,effect:'deceive', power:3,            desc:'Auto-responds all patrol queries. Unlimited.'},
   {id:'hide_3',     name:'Hide v3',      icon:'◌',cat:'utility',tier:3,mem:3,cost:3000,faction:'anarch',prestigeReq:2,passive:true,effect:'stealth', power:4,           desc:'Detection -4. High sneak chance.'},
   // Breakers Mk6 — craftable only (P5)
-  {id:'fracter_6',  name:'Fracter Mk6',  icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],    tier:6,str:28,mem:6,cost:0,   faction:'gen',  prestigeReq:5,craftable:true,desc:'Breaks Barrier ICE. STR 28. Craft only.'},
-  {id:'decoder_6',  name:'Decoder Mk6',  icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'], tier:6,str:28,mem:6,cost:0,   faction:'corp', prestigeReq:5,craftable:true,desc:'Breaks Gatekeeper. STR 28. Craft only.'},
-  {id:'killer_6',   name:'Killer Mk6',   icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:6,str:28,mem:6,cost:0,faction:'crim', prestigeReq:5,craftable:true,desc:'Breaks Guardian/Hunter. STR 28. Craft only.'},
+  {id:'fracter_6',minMeshDist:32,  name:'Fracter Mk6',  icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],    tier:6,str:28,mem:6,cost:0,   faction:'gen',  prestigeReq:5,craftable:true,desc:'Breaks Barrier ICE. STR 28. Craft only.'},
+  {id:'decoder_6',minMeshDist:32,  name:'Decoder Mk6',  icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'], tier:6,str:28,mem:6,cost:0,   faction:'corp', prestigeReq:5,craftable:true,desc:'Breaks Gatekeeper. STR 28. Craft only.'},
+  {id:'killer_6',minMeshDist:32,   name:'Killer Mk6',   icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:6,str:28,mem:6,cost:0,faction:'crim', prestigeReq:5,craftable:true,desc:'Breaks Guardian/Hunter. STR 28. Craft only.'},
 ];
 
 // Attachment definitions
@@ -139,6 +140,9 @@ const ATTACHMENTS={
   cooling:    {id:'cooling',    name:'Cooling Unit',   icon:'≋',cost:280, faction:'anarch',effect:'soothe_cd',  power:5, desc:'Soothe fires 5 ticks faster'},
   ghost_chip: {id:'ghost_chip', name:'Ghost Chip',     icon:'◌',cost:320, faction:'anarch',effect:'stealth',   power:1, desc:'+1 Hide stealth power'},
   // Mk2 attachments (uncommon tier — higher cost)
+  storage_chip:   {id:'storage_chip',   name:'Storage Chip',     icon:'◫',cost:120, faction:'gen',  effect:'storage', power:4,  desc:'+4 file storage capacity'},
+  storage_chip_2: {id:'storage_chip_2', name:'Storage Chip Mk2', icon:'◫',cost:350, faction:'crim', effect:'storage', power:8,  desc:'+8 file storage capacity'},
+  storage_chip_3: {id:'storage_chip_3', name:'Storage Chip Mk3', icon:'◫',cost:900, faction:'crim', effect:'storage', power:16, desc:'+16 file storage capacity'},
   ram_chip_3: {id:'ram_chip_3',  name:'RAM Chip Mk3',    icon:'▦',cost:1200,faction:'corp', effect:'ram',        power:6, desc:'+6 RAM capacity'},
   neural_buf2:{id:'neural_buf2', name:'Neural Buffer Mk2',icon:'◫',cost:1500,faction:'corp', effect:'integrity',  power:6, desc:'+6 max integrity'},
   turbo_proc: {id:'turbo_proc',  name:'Turbo Processor', icon:'◈',cost:1800,faction:'gen',  effect:'breaker_str',power:2, desc:'+2 all breaker STR'},
@@ -148,10 +152,9 @@ const ATTACHMENTS={
   stealth_os: {id:'stealth_os',  name:'Stealth OS',      icon:'◌',cost:2500,faction:'anarch',effect:'stealth',   power:2, desc:'+2 Hide stealth power'},
 };
 
-const ATTACH_MARKET_MK2=['ram_chip_3','neural_buf2','turbo_proc','trace_scrub','ice_ai','cryo_cooler','stealth_os'];
+const ATTACH_MARKET_MK2=['ram_chip_3','storage_chip_3','neural_buf2','turbo_proc','trace_scrub','ice_ai','cryo_cooler','stealth_os'];
 // Credit sink services (bought from UI buttons)
 const CREDIT_SINKS={
-  board_refresh: {id:'board_refresh', name:'Board Refresh',  cost:300,  desc:'Discard current contracts and generate a fresh board'},
   intel:         {id:'intel',         name:'Intel Package',  cost:150,  desc:'Reveal ICE positions on next grid before run starts'},
   trace_scrub:   {id:'trace_scrub',   name:'Trace Scrub',    cost:200,  desc:'Remove 20% trace carry-over between runs'},
 };
@@ -171,26 +174,27 @@ const BLACK_MARKET_POOL=[
 ];
 
 const ATTACH_MARKET={
-  gen:   ['ram_chip','coprocessor','ice_analyzer'],
+  gen:   ['ram_chip','storage_chip','coprocessor','ice_analyzer'],
   corp:  ['ram_chip_2','neural_buf'],
+  crim:  ['storage_chip_2'],
   crim:  ['trace_filter'],
   anarch:['cooling','ghost_chip'],
 };
 const BASE_ICE={
-  GATEKEEPER:{icon:'⬡',baseStr:2,retaliation:1,badge:'ibg',label:'GATE'},
-  BARRIER:   {icon:'▦',baseStr:2,retaliation:1,badge:'ibb',label:'BARR'},
-  GUARDIAN:  {icon:'◈',baseStr:2,retaliation:2,badge:'ibgu',label:'GARD'},
-  HUNTER:    {icon:'☠',baseStr:3,retaliation:3,badge:'ibh',label:'HUNT'},
-  PROBE:     {icon:'⊙',baseStr:3,retaliation:1,badge:'ibpr',label:'PROB',prestigeReq:1},
-  BLACK_ICE: {icon:'◼',baseStr:6,retaliation:5,badge:'ibbl',label:'BLCK',prestigeReq:2},
-  TAR_PIT:   {icon:'⬢',baseStr:2,retaliation:1,badge:'ibtp',label:'TAR',prestigeReq:3},
-  TRACER:    {icon:'◎',baseStr:2,retaliation:1,badge:'ibtr',label:'TRAC',prestigeReq:4},
-  KRAKEN:    {icon:'⬡⬡',baseStr:5,retaliation:3,badge:'ibk', label:'KRAK',prestigeReq:5,rowBlocker:true},
-  MIMIC:     {icon:'◈',baseStr:3,retaliation:2,badge:'ibm', label:'MIMC',prestigeReq:6,disguised:true},
-  LEECH:     {icon:'⊗',baseStr:3,retaliation:2,badge:'ibl', label:'LEEC',prestigeReq:7,strDrain:1},
-  CASCADE:   {icon:'◉',baseStr:4,retaliation:2,badge:'ibc', label:'CASC',prestigeReq:8,spawnsOnDeath:'BARRIER'},
-  ARCHITECT: {icon:'⬟',baseStr:3,retaliation:2,badge:'iba', label:'ARCH',prestigeReq:9,selfRepair:true},
-  OMEGA:     {icon:'◼◎',baseStr:7,retaliation:4,badge:'ibo', label:'OMEG',prestigeReq:10,multiEffect:true},
+  GATEKEEPER:{minMeshDist:0,icon:'⬡',baseStr:2,retaliation:1,badge:'ibg',label:'GATE'},
+  BARRIER:   {minMeshDist:0,icon:'▦',baseStr:2,retaliation:1,badge:'ibb',label:'BARR'},
+  GUARDIAN:  {minMeshDist:0,icon:'◈',baseStr:2,retaliation:2,badge:'ibgu',label:'GARD'},
+  HUNTER:    {minMeshDist:0,icon:'☠',baseStr:3,retaliation:3,badge:'ibh',label:'HUNT'},
+  PROBE:     {minMeshDist:4,icon:'⊙',baseStr:3,retaliation:1,badge:'ibpr',label:'PROB'},
+  BLACK_ICE: {minMeshDist:8,icon:'◼',baseStr:6,retaliation:5,badge:'ibbl',label:'BLCK',prestigeReq:2},
+  TAR_PIT:   {minMeshDist:12,icon:'⬢',baseStr:2,retaliation:1,badge:'ibtp',label:'TAR'},
+  TRACER:    {minMeshDist:16,icon:'◎',baseStr:2,retaliation:1,badge:'ibtr',label:'TRAC'},
+  KRAKEN:    {minMeshDist:32,icon:'⬡⬡',baseStr:5,retaliation:3,badge:'ibk', label:'KRAK',rowBlocker:true},
+  MIMIC:     {minMeshDist:48,icon:'◈',baseStr:3,retaliation:2,badge:'ibm', label:'MIMC',disguised:true},
+  LEECH:     {minMeshDist:64,icon:'⊗',baseStr:3,retaliation:2,badge:'ibl', label:'LEEC',strDrain:1},
+  CASCADE:   {minMeshDist:96,icon:'◉',baseStr:4,retaliation:2,badge:'ibc', label:'CASC',spawnsOnDeath:'BARRIER'},
+  ARCHITECT: {minMeshDist:128,icon:'⬟',baseStr:3,retaliation:2,badge:'iba', label:'ARCH',prestigeReq:9,selfRepair:true},
+  OMEGA:     {minMeshDist:192,icon:'◼◎',baseStr:7,retaliation:4,badge:'ibo', label:'OMEG',multiEffect:true},
 };
 const NODE_DEF={
   ENTRY:    {icon:'⬡',label:'ENTRY',   color:'#00ff88'},
@@ -532,13 +536,13 @@ const FACTION_VERBS={
 const PDEFS=[
   {id:'fracter_1',name:'Fracter Mk1',icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],tier:1,str:2,mem:1,cost:80,faction:'gen',desc:'Breaks Barrier ICE. STR 2.'},
   {id:'fracter_2',name:'Fracter Mk2',icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],tier:2,str:5,mem:2,cost:300,faction:'gen',desc:'Breaks Barrier ICE. STR 5.'},
-  {id:'fracter_3',name:'Fracter Mk3',icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],tier:3,str:9,mem:3,cost:0,faction:'gen',desc:'Breaks Barrier ICE. STR 9.',craftable:true},
+  {id:'fracter_3',minMeshDist:4,name:'Fracter Mk3',icon:'⬡',cat:'breaker',iceTypes:['BARRIER'],tier:3,str:9,mem:3,cost:0,faction:'gen',desc:'Breaks Barrier ICE. STR 9.',craftable:true},
   {id:'decoder_1',name:'Decoder Mk1',icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'],tier:1,str:2,mem:1,cost:80,faction:'gen',desc:'Breaks Gatekeeper. STR 2.'},
   {id:'decoder_2',name:'Decoder Mk2',icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'],tier:2,str:5,mem:2,cost:300,faction:'corp',desc:'Breaks Gatekeeper. STR 5.'},
-  {id:'decoder_3',name:'Decoder Mk3',icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'],tier:3,str:9,mem:3,cost:0,faction:'corp',desc:'Breaks Gatekeeper. STR 9.',craftable:true},
+  {id:'decoder_3',minMeshDist:4,name:'Decoder Mk3',icon:'◇',cat:'breaker',iceTypes:['GATEKEEPER'],tier:3,str:9,mem:3,cost:0,faction:'corp',desc:'Breaks Gatekeeper. STR 9.',craftable:true},
   {id:'killer_1',name:'Killer Mk1',icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:1,str:2,mem:1,cost:80,faction:'gen',desc:'Breaks Guardian/Hunter. STR 2.'},
   {id:'killer_2',name:'Killer Mk2',icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:2,str:5,mem:2,cost:350,faction:'crim',desc:'Breaks Guardian/Hunter. STR 5.'},
-  {id:'killer_3',name:'Killer Mk3',icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:3,str:9,mem:3,cost:0,faction:'crim',desc:'Breaks Guardian/Hunter. STR 9.',craftable:true},
+  {id:'killer_3',minMeshDist:4,name:'Killer Mk3',icon:'◈',cat:'breaker',iceTypes:['GUARDIAN','HUNTER'],tier:3,str:9,mem:3,cost:0,faction:'crim',desc:'Breaks Guardian/Hunter. STR 9.',craftable:true},
   {id:'hide_1',name:'Hide v1',icon:'◌',cat:'utility',tier:1,mem:1,cost:60,faction:'gen',passive:true,effect:'stealth',power:1,desc:'Patrol detection -1. Barrier sneak assist.'},
   {id:'hide_2',name:'Hide v2',icon:'◌',cat:'utility',tier:2,mem:2,cost:220,faction:'anarch',passive:true,effect:'stealth',power:2,desc:'Detection -2. Stronger sneak.'},
   {id:'deceive_1',name:'Deceive v1',icon:'⊘',cat:'utility',tier:1,mem:1,cost:70,faction:'gen',passive:true,effect:'deceive',desc:'Auto-responds all Patrol queries (passive).'},
@@ -559,7 +563,7 @@ const PDEFS=[
   {id:'polymorph',     name:'Polymorph',    icon:'⟁',cat:'utility',tier:3,mem:3,cost:400,  faction:'gen',  passive:false,effect:'polymorph',  desc:'Swap one installed program mid-run (once per cell).',prestigeReq:5},
   {id:'switchblade',   name:'Switchblade',  icon:'⚔',cat:'utility',tier:3,mem:2,cost:500,  faction:'crim', passive:true, effect:'switchblade',desc:'Auto-selects best breaker before each combat.',prestigeReq:6},
   {id:'cloak',         name:'Cloak',        icon:'◌',cat:'utility',tier:3,mem:2,cost:600,  faction:'gen',  passive:true, effect:'cloak',      desc:'First combat this run: guaranteed sneak.',prestigeReq:7},
-  {id:'overclock_2',   name:'Overclock v2', icon:'⚙',cat:'utility',tier:3,mem:3,cost:800,  faction:'anarch',passive:true,effect:'overclock2', power:4,desc:'Breaker STR +4 passive every combat.',prestigeReq:8},
+  {id:'overclock_2',minMeshDist:4,   name:'Overclock v2', icon:'⚙',cat:'utility',tier:3,mem:3,cost:800,  faction:'anarch',passive:true,effect:'overclock2', power:4,desc:'Breaker STR +4 passive every combat.',prestigeReq:8},
   {id:'daemon',        name:'Daemon',       icon:'◈',cat:'utility',tier:3,mem:3,cost:1000, faction:'gen',  passive:true, effect:'daemon',     power:1,desc:'+1 STR to all breakers passively. Stacks.',prestigeReq:9},
   {id:'polymorph_2',   name:'Polymorph v2', icon:'⟁',cat:'utility',tier:4,mem:4,cost:2000, faction:'gen',  passive:false,effect:'polymorph2', desc:'Swap any programs freely mid-run.',prestigeReq:10},
 ];
@@ -683,6 +687,7 @@ const pdef=id=>PDEFS.find(p=>p.id===id);
 const hwdef=()=>HARDWARE.find(h=>h.id===S.hardware);
 const ramUsed=()=>S.installed.reduce((a,iid)=>{const it=S.inventory.find(x=>x.instId===iid);return a+(it?pdef(it.defId)?.mem||0:0);},0);
 const ramMax=()=>(hwdef()?.ram||8)+attachEffect('ram');
+const storageMax=()=>(hwdef()?.storage||8)+attachEffect('storage');
 const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+S.prestige+attachEffect('integrity')-(S.permIntLoss||0));
 const curTier=()=>levelToTier(S.level);
 const prestigeThresholds=[20,40,60,80,100];
@@ -698,5 +703,6 @@ const xpToLvl=lvl=>{
   return lvl*800; // deep endgame — each level is a real achievement
 };
 const iceStr=(t,tier)=>Math.max(1,(BASE_ICE[t]?.baseStr||2)+Math.max(0,tier-1)+(tier>=8?Math.floor((tier-7)/2):0)-(S._anarchBonus||0));
+// Available ICE filtered by mesh distance
 const availICE=()=>Object.entries(BASE_ICE).filter(([k,v])=>!v.prestigeReq||S.prestige>=v.prestigeReq).map(([k])=>k);
 

@@ -1,4 +1,4 @@
-// MESH v0.4 — save.js
+// MESH v0.5 — save.js
 // ===================
 
 const SAVE_VER=1;
@@ -8,24 +8,25 @@ let _autoSlot=null;
 
 function buildSave(name){
   return{version:SAVE_VER,slotName:name||'Runner',savedAt:Date.now(),
-    cred:S.cred,level:S.level,xp:S.xp,prestige:S.prestige,rep:S.rep,subrep:S.subrep||{},
+    cred:S.cred,level:S.level,xp:S.xp,prestige:S.prestige,rep:S.rep,
     hardware:S.hardware,ownedHW:S.ownedHW,
     inventory:S.inventory,installed:S.installed,
     backdoorCell:S.backdoorCell,
     runHistory:S.runHistory,totalRuns:S.totalRuns,totalCred:S.totalCred,craftedBps:S.craftedBps||[],earnedBps:S.earnedBps||[],attachments:S.attachments||[],
     traceCarry:S.traceCarry||0,permIntLoss:S.permIntLoss||0,ops:S.ops||{},
     achievements:S.achievements||{},stats:S.stats||{},
+    mesh:S.mesh||null,world:S.world||null,inTutorial:S.inTutorial||false,tutorialNet:S.tutorialNet||null,
     shop:S.shop,shopNextRotate:S.shopNextRotate,
     bmRotation:S._bmRotation||[],bmNextRotate:S._bmNextRotate||0,
     crafting:(S.crafting||[]).filter(c=>!c.done),
-    deckRAMMax:S.deckRAMMax||8};
+    deckRAMMax:S.storageMax||8};
 }
 function applyLoad(data){
   S=mkState();
   S.cred=data.cred||0;S.level=data.level||1;S.xp=data.xp||0;S.prestige=data.prestige||0;
   S.rep=data.rep||{corp:0,crim:0,anarch:0,neutral:0};
   // Merge saved subrep over fresh defaults to handle new sub-factions added in updates
-  S.subrep={...S.subrep,...(data.subrep||{})};
+  // subrep removed
   S.hardware=data.hardware||'haas_common';S.ownedHW=data.ownedHW||['haas_common'];
   S.inventory=data.inventory||[];S.installed=data.installed||[];
   S.backdoorCell=data.backdoorCell||null;
@@ -39,13 +40,27 @@ function applyLoad(data){
   S.ops=data.ops||{activeOps:[],nextRun:{}};
   S.achievements=data.achievements||{};
   S.stats=data.stats||{};
+  S.mesh=data.mesh||null;
+  // Always wipe cached layouts on load — they regenerate deterministically
+  if(S.mesh?.visitedNets){
+    S.mesh.visitedNets.forEach(ns=>{
+      ns.layout = null;
+      ns.layoutVersion = null;
+      // Wipe companies if they lack the key field (pre-v0.5 saves)
+      const hasKeys = Object.values(ns.companies||{}).flat().every(c=>c.key);
+      if(!hasKeys) ns.companies = null;
+    });
+  }
+  S.world=data.world||null;
+  S.inTutorial=data.inTutorial||false;
+  S.tutorialNet=data.tutorialNet||null;
   S.shop=data.shop||{gen:[],corp:[],crim:[],anarch:[]};
   S.crafting=data.crafting||[];
   S._bmRotation=data.bmRotation||[];
   S._bmNextRotate=data.bmNextRotate||0;
   // Restore craft start times (real-time based)
   S.crafting.forEach(c=>{if(!c.startTime)c.startTime=Date.now();});
-  S.deckRAMMax=data.deckRAMMax||8;
+  S.storageMax=data.deckRAMMax||8;
   S.shopNextRotate=data.shopNextRotate||{gen:0,corp:0,crim:0,anarch:0};
   S.integrity=maxInt();S.crafting=[];
   // Ensure all shops populated (handles old saves)
@@ -59,8 +74,8 @@ function loadFromSlot(slot){
   try{
     const raw=localStorage.getItem(saveKey(slot));if(!raw)return false;
     applyLoad(JSON.parse(raw));addLog(`📂 Loaded Slot ${slot}`,'li');
-    generateBoard();renderAll();showTab('run');
-    startAutoRunCountdown();
+    generateBoard();renderAll();
+    // Don't show game layout here — home screen will handle navigation
     return true;
   }catch(e){addLog('Load failed: '+e.message,'lb');return false;}
 }
@@ -137,6 +152,13 @@ function titleContinue(slot){
   _autoSlot=slot;
   loadFromSlot(slot);
   hideTitle();
+  // Show home screen — it hides game-layout and shows home
+  setTimeout(()=>{
+    const gameEl=document.getElementById('game-layout');
+    if(gameEl) gameEl.style.display='none';
+    if(typeof showHomeScreen==='function'){ showHomeScreen(); }
+    if(typeof renderHomeScreen==='function'){ renderHomeScreen(); }
+  }, 650);
 }
 
 function titleNewGame(){
@@ -197,11 +219,18 @@ function titleStartNew(overwriteSlot){
   if(typeof initBMRotation==='function')initBMRotation();
   saveToSlot(slot,name);
   _autoSlot=slot;
-  addLog('▶ NEW GAME — MESH OS v0.4','li');
+  if(!S.mesh) S.mesh = (typeof mkMeshState==='function')?mkMeshState():null;
+  if(!S.world) S.world = (typeof mkWorldState==='function')?mkWorldState():null;
+  addLog('▶ NEW GAME — MESH OS v0.5','li');
   addLog('"All the nets that ever were, are, or will be make up the Mesh"','li');
   generateBoard();renderAll();
   hideTitle();
-  startAutoRunCountdown();
+  setTimeout(()=>{
+    const gameEl=document.getElementById('game-layout');
+    if(gameEl) gameEl.style.display='none';
+    if(typeof showHomeScreen==='function'){ showHomeScreen(); }
+    if(typeof renderHomeScreen==='function'){ renderHomeScreen(); }
+  }, 650);
 }
 
 function titleLoad(){
@@ -251,7 +280,7 @@ function startNewGame(){
   S.integrity=maxInt();
   ['gen','corp','crim','anarch'].forEach(f=>initShop(f));
   S.selectedBlueprint=null;
-  addLog('▶ NEW GAME — MESH OS v0.4','li');addLog('Select contracts to begin','li');
+  addLog('▶ NEW GAME — MESH OS v0.5','li');addLog('Select contracts to begin','li');
   generateBoard();renderAll();showTab('run');
   startAutoRunCountdown();
 }

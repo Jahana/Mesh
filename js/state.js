@@ -5,7 +5,7 @@
 let _autoRunTimer=null;
 let _autoRunCountdown=0;
 let _runLocked=false;
-let _autoRunEnabled=true; // toggle persisted separately
+let _autoRunEnabled=false; // disabled until unlocked in net 0:0
 let _lastRunSummary=null;
 
 // ── DYNAMIC TICK COST FUNCTIONS ───────────────────────────────────────────
@@ -103,14 +103,14 @@ function autoLoadout(contract){
 function autoSelectContracts(){
   // Clear current selection
   S.board.forEach(ct=>{
-    if(ct.taken){ct.taken=false;ct.objectives.forEach(o=>{if(o.file)S.deckRAM=S.deckRAM.filter(f=>f.id!==o.file.id);});}
+    if(ct.taken){ct.taken=false;ct.objectives.forEach(o=>{if(o.file)S.storage=S.storage.filter(f=>f.id!==o.file.id);});}
   });
-  S.active=[];S.deckRAM=[];
+  S.active=[];S.storage=[];
   // Pick exactly ONE contract — highest reward that fits in RAM
   const sorted=[...S.board].sort((a,b)=>b.reward.cred-a.reward.cred);
   const picked=sorted.find(ct=>{
     const need=ct.objectives.filter(o=>o.file).length;
-    if(need>S.deckRAMMax)return false;
+    if(need>storageMax())return false;
     if(ct.repReq>0){
       const facKey=typeof flavorToRepKey==='function'?flavorToRepKey(ct.flavor):null;
       const sfRep=ct.subfac?S.subrep?.[ct.subfac]||0:0;
@@ -121,7 +121,7 @@ function autoSelectContracts(){
   });
   if(picked){
     picked.taken=true;S.active=[picked];
-    picked.objectives.forEach(o=>{if(o.file){o.file.preloaded=true;S.deckRAM.push(o.file);}});
+    picked.objectives.forEach(o=>{if(o.file){o.file.preloaded=true;S.storage.push(o.file);}});
     autoLoadout(picked);
   }else{
     autoLoadout(null);
@@ -141,7 +141,11 @@ function toggleAutoRun(){
   addLog(`Auto-run ${_autoRunEnabled?'enabled':'disabled'}`,'li');
 }
 function loadAutoRunPref(){
-  try{const v=localStorage.getItem('mesh_autorun');if(v!==null)_autoRunEnabled=v==='1';}catch(e){}
+  // Autorun disabled by default — only load if player has unlocked it
+  try{const v=localStorage.getItem('mesh_autorun_unlocked');
+    if(v==='1'){const pref=localStorage.getItem('mesh_autorun');_autoRunEnabled=pref!=='0';}
+    else _autoRunEnabled=false;
+  }catch(e){}
   const btn=document.getElementById('autorun-toggle-btn');
   if(btn){btn.textContent=_autoRunEnabled?'AUTO ●':'AUTO ○';btn.style.color=_autoRunEnabled?'#40ff80':'#4a4a4a';}
 }
@@ -261,7 +265,7 @@ const mkState=()=>({
   earnedBps:[], // blueprint IDs discovered (available to craft)
   attachments:[], // installed attachment IDs [{slotIdx, attachId}]
   board:[],active:[],
-  deckRAM:[],deckRAMMax:8,
+  storage:[],
   running:false,tier:1,rows:3,cols:3,
   grid:[],patrols:[],hunters:[],
   player:{r:0,c:0,stalled:false,waitTicks:0},
@@ -279,6 +283,11 @@ const mkState=()=>({
   _cpuVisits:0, _actionTickMod:0, _overloadActive:false,
   _intelBought:false, _mfrPerk:{},
   achievements:{},
+  mesh: null,   // initialized on first jack-in or new game
+  world: null,  // real world state
+  inTutorial: false,
+  tutorialNet: null,
+  tutorialNode: null,
   stats:{
     runsStarted:0, runsCompleted:0, runsFailed:0,
     contractsCompleted:0, contractsFailed:0,

@@ -1,4 +1,4 @@
-// MESH v0.4 — main.js
+// MESH v0.5 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -153,6 +153,7 @@ function init(){
   requestAnimationFrame(gameTick);
   // Show title screen — handles new/continue/load
   showTitle();
+  // After title, home screen will be shown by the load/new game flow
   setInterval(()=>{
     if(S.crafting&&S.crafting.some(c=>!c.done)){
       if(document.getElementById('tab-craft-content')?.classList.contains('active'))renderCraft();
