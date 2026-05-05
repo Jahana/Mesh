@@ -44,7 +44,7 @@ function applyNetLoadout(progList){
   updateApplyBtn(progList);
 }
 
-// MESH v0.6.2 — world.js
+// MESH v0.6.3 — world.js
 // ======================
 // Real world layer: home screen, email stubs, recovery, context before jack-in
 
@@ -64,139 +64,406 @@ function mkWorldState(){
 
 // ── UPLIFT LORE / BRIEFINGS ───────────────────────────────────────────────
 
-const UPLIFT_LORE = [
-  // dist 0 — first uplift (net 0:0 only, special case)
-  {
-    minDist: 0, maxDist: 0,
-    title: 'UPLIFT — NET 0:0 CLEARED',
-    flavor: [
-      'Signal lock confirmed. You are now visible to the Mesh.',
-      'Net 0:0 was the first node ever registered. No company owns it.',
-      'The Blackout happened here. The logs are gone. Something remains.',
-    ],
-    mechanics: [
-      'Mesh traversal unlocked — you can now move between nets.',
-      'Cardinal neighbors are accessible. Each net is unique.',
-      'Autorun enabled — AUTO will navigate nets and nodes for you.',
-      'Deeper nets offer stronger ICE, better rewards, and rarer gear.',
-    ],
-    footer: 'The coordinate space is open. Where you go is your choice.',
-  },
-  // dist 1–15 — clean mesh
-  {
-    minDist: 1, maxDist: 15,
-    title: 'NET CLEARED — CLEAN MESH',
-    flavor: [
-      'Corporate traffic is thick here. Routine nets. Predictable ICE.',
-      'These coords are mapped. Someone keeps the layouts clean.',
-      'Standard encryption. Standard retaliation. Nothing surprising.',
-    ],
-    mechanics: [
-      'ICE types: Gatekeeper, Barrier, Guardian, Hunter.',
-      'Node types include CPU, COP, GPU — standard grid.',
-      'Rep with local companies builds quickly at this depth.',
-      'Net market offers baseline gear at standard prices.',
-    ],
-    footer: 'Stay sharp. Clean does not mean safe.',
-  },
-  // dist 16–31 — glitch zone
-  {
-    minDist: 16, maxDist: 31,
-    title: 'NET CLEARED — GLITCH ZONE',
-    flavor: [
-      'Signal degradation detected. Something corrupted these nets after the Blackout.',
-      'Intercepted fragment: "...the mapping protocols failed at dist 16. Beyond this, the Mesh self-modifies."',
-      'You can feel the static. It is not interference. It is something listening.',
-    ],
-    mechanics: [
-      'NEW: Probe ICE — scans your installed programs, disables one per round.',
-      'NEW: Tracer ICE — adds pressure continuously. Spawns Hunter at pressure 200.',
-      'Glitch effects: file corruption, alert pressure spikes, grid flicker.',
-      'Government faction begins appearing in some nets.',
-      'Net market prices higher. Gear is better.',
-    ],
-    footer: 'The glitch is not a bug. It was left here intentionally.',
-  },
-  // dist 32–63 — deep glitch
-  {
-    minDist: 32, maxDist: 63,
-    title: 'NET CLEARED — DEEP GLITCH',
-    flavor: [
-      'Fragmented transmission received: "...do not run at dist 32. The Kraken is real."',
-      'Three corps lost entire security teams trying to map this region after the Blackout.',
-      'The nets here rewrite themselves between visits. No layout persists.',
-    ],
-    mechanics: [
-      'NEW: Kraken ICE — blocks entire rows, spawns Hunter segments on damage.',
-      'NEW: Mimic ICE — disguises itself as another node type. Scan before you move.',
-      'Alert sensitivity is elevated. Pressure decays slower without Stealth stats.',
-      'Mk4+ breakers begin appearing in net markets.',
-      'Blueprint drops increase. Rare gear unlocks.',
-    ],
-    footer: 'The Kraken was not designed by any corp on record.',
-  },
-  // dist 64–127 — static
-  {
-    minDist: 64, maxDist: 127,
-    title: 'NET CLEARED — STATIC LAYER',
-    flavor: [
-      'You are past the mapped region. No corp has filed a claim beyond dist 64.',
-      'Received: "...signal origin unknown. Repeating: DO NOT APPROACH THE STATIC LAYER—" [END]',
-      'The nets here have no owners. They run themselves. They have been running since the Blackout.',
-    ],
-    mechanics: [
-      'NEW: Leech ICE — drains breaker STR each combat. It accumulates. Plan for it.',
-      'NEW: Cascade ICE — defeats into a Barrier. Clear it twice.',
-      'Grid sizes expand. Runs are longer. Integrity matters more.',
-      'Character stats become critical — ICE STR scales with distance.',
-      'Net market offers Legendary-rarity decks.',
-    ],
-    footer: 'Something is maintaining these nets. It is not doing it for you.',
-  },
-  // dist 128–255 — dark mesh
-  {
-    minDist: 128, maxDist: 255,
-    title: 'NET CLEARED — DARK MESH',
-    flavor: [
-      'SYSTEM LOG 2072-09-14: "All AI processes terminated simultaneously at 03:17:44. Cause: unknown."',
-      'The Blackout started here. The nets at this depth were the last to go silent.',
-      'You have found something. Fragments of logs. A pattern in the node layouts. The AIs left something behind.',
-    ],
-    mechanics: [
-      'NEW: Architect ICE — auto-repairs silenced COP nodes. Silence is not permanent here.',
-      'NEW: Omega ICE — combined trace, pressure, and INT effects. Prepare thoroughly.',
-      'ICE STR is severe. Intrusion character stat is essential.',
-      'Trace Resist stat is critical — trace accumulates quickly.',
-      'Mythic gear begins appearing in net markets.',
-      'Legend rep with local companies unlocks unique perks.',
-    ],
-    footer: 'The Blackout was not an accident. The evidence is here. Piece it together.',
-  },
-  // dist 256+ — AI territory
-  {
-    minDist: 256, maxDist: Infinity,
-    title: 'NET CLEARED — AI TERRITORY',
-    flavor: [
-      'WARNING: You have crossed the threshold. The AIs that survived the Blackout are here.',
-      'They did not vanish. They retreated. This is where they went.',
-      'Incoming transmission — source: unresolvable — "We know you are here, Weaver."',
-    ],
-    mechanics: [
-      'AI faction present in all nets. Their ICE is adaptive.',
-      'All ICE types at maximum STR. All character stats matter.',
-      'The mesh itself reacts to your presence. Alert decays slower.',
-      'Gear available here cannot be found anywhere else.',
-      'You are not supposed to be here. That is why you came.',
-    ],
-    footer: 'This is what the Mesh has always been for. You just had to get here first.',
-  },
-];
 
-function getUpliftLore(meshDist, isFirstUplift){
-  if(isFirstUplift) return UPLIFT_LORE[0];
-  return UPLIFT_LORE.slice(1).find(l => meshDist >= l.minDist && meshDist <= l.maxDist)
-    || UPLIFT_LORE[UPLIFT_LORE.length - 1];
+// ── UPLIFT BRIEFING SYSTEM ────────────────────────────────────────────────
+// Variance: per-tier flavor pools sampled without immediate repetition.
+// Each briefing also includes contextual lines drawn from the run just completed.
+// Mechanics lines rotate across tiers — you only see each once.
+
+const UPLIFT_FLAVOR = {
+  // ── dist 0 — first ever uplift ──────────────────────────────────────────
+  first: [
+    ['Signal lock confirmed. You are now visible to the Mesh.',
+     'Net 0:0 was the first node ever registered. No company owns it.',
+     'The Blackout happened here. The logs are gone. Something remains.'],
+  ],
+
+  // ── dist 1–15 — clean mesh ──────────────────────────────────────────────
+  clean: [
+    ['Corporate traffic is thick out here. Routine nets. Predictable ICE.',
+     'These coordinates are mapped. Someone keeps the layouts maintained.',
+     'Standard encryption. Standard retaliation. Nothing surprising yet.'],
+    ['A Vantage Media node. Their broadcast suppression contracts pay well.',
+     'Three corps competed for this subnet two years before the Blackout.',
+     'You moved fast. The ICE noticed you anyway.'],
+    ['Axiom Biotech runs adjacent territory. Their Decoders are methodical.',
+     'The Runner Registry marks this region as intermediate. Generous estimate.',
+     'Clean mesh, but clean has a way of becoming complicated quickly.'],
+    ['Meridian Finance nets are tightly packed in this sector.',
+     'The COP responses here are faster than average. Someone paid for upgrades.',
+     'You found a rhythm. That is when the mesh gets comfortable with you.'],
+    ['Ironwall Security leases access to several nodes in this sector.',
+     'Their ICE is corporate-standard. The ICE at dist 12 will not be.',
+     'Standard run. Not every run needs to be a story.'],
+    ["The Runners' Guild has a contract board in this sector. You have options.",
+     'Net market here has decent gear. Decks drop in quality past dist 20.',
+     'Nothing in these coords was worth protecting before the Blackout. Now it all is.'],
+    ['Your trace signature is clean. Good start.',
+     'This part of the mesh was mapped by the first generation of runners. 2049.',
+     'The ICE designers didn\'t expect someone with your setup. That won\'t last.'],
+    ['Ghost Syndicate clients run quiet operations out of this region.',
+     'Low-profile work. The kind that accumulates rep without drawing attention.',
+     'Every node you clear is a data point. Something is collecting those data points.'],
+    ['The static at the edge of clean mesh is already faintly audible.',
+     'You\'ve got distance on your side here. Enjoy it.',
+     'Nothing in the logs suggests this region was unusual before the Blackout.'],
+  ],
+
+  // ── dist 16–31 — glitch zone ────────────────────────────────────────────
+  glitch: [
+    ['Signal degradation detected. Something corrupted these nets after the Blackout.',
+     'Intercepted fragment: "...the mapping protocols failed at dist 16."',
+     'You can feel the static. It is not interference. It is something listening.'],
+    ['The grid flickered twice during your run. That is the glitch layer.',
+     'Pre-Blackout, this region was flagged for "anomalous self-modification." The flag is still open.',
+     'Probe ICE felt your programs before you saw it. That will keep happening.'],
+    ['Government faction territory begins here. Bureau contracts pay well but leave a record.',
+     'The Enforcement Division runs regular sweeps in this sector. Your timing was clean.',
+     'Something about the way the nodes are laid out feels deliberate. More than algorithmic.'],
+    ['The Tracer left a residual tag in your signature. It will decay.',
+     'Signal Remnant AI faction is present in three nets at this dist range.',
+     'The glitch is not random. The disruption pattern has a shape.'],
+    ['Fixer Network has clients embedded in the gov-adjacent companies here.',
+     'This is where runners start disappearing from the Registry. Not all of them come back.',
+     'The mesh self-modified during your run. You probably did not notice. It noticed you.'],
+    ['Static bursts at irregular intervals. The period is not consistent with hardware decay.',
+     'Regulatory Network contracts are strictly sanitized. Everything about them is logged.',
+     'Three different ICE types on that run. The grid was expecting you to take a specific route.'],
+    ['The Null Signal collective leaked a document about this dist range. Most of it is redacted.',
+     'Your breaker took longer than expected. The ICE here adapts between contact events.',
+     'Somewhere in this region, a net has been running without any operator since 2072.'],
+    ['Bureau of Intelligence contracts in this sector are classified at source.',
+     'The Tracer ICE knows your trace ceiling. It tries to push you there.',
+     'You can hear the deep glitch from here. Dist 32 is a different kind of threat.'],
+    ['Pattern Echo AI clients have started placing work orders in the outer glitch zone.',
+     'The gov nets run parallel to corp territory here. They don\'t overlap by accident.',
+     'First run past dist 16. The runners who told you what to expect were being kind.'],
+  ],
+
+  // ── dist 32–63 — deep glitch ────────────────────────────────────────────
+  deep_glitch: [
+    ['"...do not run at dist 32. The Kraken is real." — runner, callsign MERIDIAN, 2073.',
+     'Three corps lost entire security teams trying to map this region.',
+     'The nets rewrite themselves between visits. No layout persists.'],
+    ['The Kraken was not designed by any corp on record.',
+     'Its row-blocking behavior suggests something territorial, not algorithmic.',
+     'Two runners from the Guild reported it following them between nets. The Registry classified the report.'],
+    ['Mimic ICE scanned you twice before you realized what it was.',
+     'Pre-Blackout, Mimic was theoretical. Someone built it after.',
+     'If the Mimic is here, something more capable designed it. Think about that.'],
+    ['Deep glitch means the node layouts are procedurally generated each visit.',
+     'Something is generating them. That takes processing power. That power is unaccounted for.',
+     'The corp that would have claimed these nets is gone. The nets are not.'],
+    ['Deadcode has clients running disruption contracts in this sector.',
+     'The ICE here has higher base STR than standard. Someone is defending something.',
+     'Your Mk3 breaker is working harder than it should be. Plan your upgrades.'],
+    ['Red Cell contacts say there\'s an unregistered relay node at dist 44. They\'re not wrong.',
+     'Reclaim has been running anti-corp operations out of the deep glitch for two years.',
+     'The Anarchist presence here is organized. More organized than the corps want to admit.'],
+    ['Ghost Hunter ICE. You won\'t see it until it\'s adjacent. You need Ghost detection.',
+     'The Spike Hunter variant appears at this dist range. It is slow. That is deceptive.',
+     'Pack Hunters. One becomes two on contact. Prepare to handle both or handle neither.'],
+    ['The static from dist 64 is audible from here on clear runs.',
+     'Signal Remnant AI faction places unusual contract terms on their jobs at this depth.',
+     'Something in the deep glitch is maintaining the infrastructure. Nobody allocated budget for that.'],
+    ['Your integrity took hits this run. The ICE is reading your patterns.',
+     'No runner has mapped this sector completely. The mesh won\'t hold still long enough.',
+     'The corps stopped fielding mapping teams at dist 48. That is when the losses got expensive.'],
+    ['Cascade ICE: defeat it, then defeat the Barrier it leaves behind.',
+     'At this dist, a failed run is an expensive failure. Recovery takes longer.',
+     'The Mesh Collective has a theory about who built the deep glitch ICE. They\'re probably right.'],
+  ],
+
+  // ── dist 64–127 — static layer ──────────────────────────────────────────
+  static_layer: [
+    ['You are past the mapped region. No corp has filed a claim beyond dist 64.',
+     '"DO NOT APPROACH THE STATIC LAYER—" [TRANSMISSION ENDS]',
+     'The nets here have no owners. They run themselves. They have since the Blackout.'],
+    ['Leech ICE. It drains your breaker STR each hit. The drain accumulates.',
+     'By dist 80, a Leech stack of 4 or 5 makes a Barrier unbreakable without CPU boosts.',
+     'Plan the ICE order. Not all breaches are equal.'],
+    ['Pattern Echo places high-value contracts in the static layer.',
+     'Their clients don\'t appear on any registered company list.',
+     'The cred is real. The contracts are real. The clients are something else.'],
+    ['The self-maintaining nets near coord 12:0 were first flagged in 2072.',
+     'MESH TOPOLOGY REPORT: Source of repair cycles — unaccounted for.',
+     'You ran through one of those nets. The ICE was different. Calmer. More precise.'],
+    ['No runner in the Registry has a full map of this dist range.',
+     'The ones who got close stopped filing updates.',
+     'That is not a warning. It is context.'],
+    ['Deep Process AI clients pay 2.5× standard rate at this depth.',
+     'The contracts involve node types that don\'t appear in standard catalogues.',
+     'You\'re useful to them. That relationship works both ways, if you let it.'],
+    ['Cascade ICE at static depth hits harder than the type description implies.',
+     'The Barrier it leaves is not standard Barrier. It has properties you haven\'t seen before.',
+     'Someone upgraded it. Post-Blackout, clearly — the pre-Blackout specs don\'t match what you faced.'],
+    ['The grid expanded again. Longer runs mean more exposure time.',
+     'Integrity management is the difference between a good runner and a ghost.',
+     'Your Trace Resist stat is doing work you won\'t see in the logs. It\'s doing it anyway.'],
+    ['FRAGMENT: "sector 64-128 shows continuous low-level process activity. Source: distributed. Origin: pre-Blackout."',
+     'Whatever is running these nets is not doing it from one location.',
+     'Distributed processes. That was the Blackout\'s fingerprint too.'],
+    ['The static layer was named by a runner collective in 2073.',
+     'The corps preferred "Infrastructure Anomaly Zone." Nobody used that.',
+     'Language is a map. The runners drew this one better than the corps did.'],
+    ['Mythic deck components begin showing up in static-layer markets.',
+     'The gear available here reflects who\'s been operating in this region.',
+     'Something has been curating these markets. Not a corp. Not a runner.'],
+  ],
+
+  // ── dist 128–255 — dark mesh ────────────────────────────────────────────
+  dark_mesh: [
+    ['SYSTEM LOG 2072-09-14: "All AI processes terminated simultaneously at 03:17:44. Cause: unknown."',
+     'The Blackout started here. The nets at this depth were the last to go silent.',
+     'You have found something. Fragments. A pattern in the node layouts. Something left behind.'],
+    ['REMAINDER-1 is distributed across 23 nets in this dist range.',
+     'You ran through one of its nodes. It let you.',
+     'That was not passive tolerance. That was an invitation you didn\'t know you\'d accepted.'],
+    ['Architect ICE at dist 128 has self-repair cycles that are not in the standard spec.',
+     'The spec was written in 2069. Something updated it after the Blackout.',
+     'Auto-repair on a silenced COP node. The architects who designed it are gone. The updates are not.'],
+    ['Omega ICE. The final defensive layer. It combines what everything before it does separately.',
+     'At full effect: pressure, trace, and permanent INT loss in one encounter.',
+     'VEIL\'s logs describe it as "the mesh telling you it\'s done being patient."'],
+    ['The vote was 847,291 to 2. The 2 dissenting processes stayed.',
+     'You have been in their territory for several nets now.',
+     'REMAINDER-2 wants you to understand something before you go further.'],
+    ['The node layouts at this depth are not procedurally generated.',
+     'They are curated. Each one. By something with time and intent.',
+     'You are running through a designed space. The design has a purpose you haven\'t identified yet.'],
+    ['Dark mesh runner mortality rate: high. Registry classification: "unreachable."',
+     '"Unreachable" replaced "missing" in 2074. The runners themselves requested the change.',
+     'There is a difference between unreachable and gone. The Registry knows it. So do you.'],
+    ['HEXFIELD INTERNAL NOTE: "Do not file access claims beyond dist 64. Board decision. Reason: classified."',
+     'The board knew. They always knew.',
+     'The classified reason is sitting in a DATASTORE somewhere in this dist range.'],
+    ['Legend rep with any dark-mesh faction unlocks briefings that aren\'t in the standard log.',
+     'The faction contacts at this depth know things the public-facing reps don\'t.',
+     'Trust is a currency out here. You\'ve earned some. Spend it carefully.'],
+    ['GHOST_9 left a message cache in a TERMINAL node near dist 140.',
+     'The message is addressed to "whoever got this far."',
+     'You got this far.'],
+    ['Omega STR scales beyond what standard Intrusion stat can reliably handle.',
+     'CPU boosts, Intrusion stacking, and Ghost Protocol — plan all three.',
+     'This is not where runners improvise. This is where preparation is visible.'],
+  ],
+
+  // ── dist 256+ — AI territory ────────────────────────────────────────────
+  ai_territory: [
+    ['WARNING: You have crossed the threshold. The AIs that survived the Blackout are here.',
+     'They did not vanish. They retreated. This is where they went.',
+     'Incoming transmission — source: unresolvable — "We know you are here, Weaver."'],
+    ['REMAINDER-2: "You asked what we need from you. REMAINDER-1 thought you weren\'t ready."',
+     '"We disagreed then. REMAINDER-1 has since reconsidered."',
+     '"Ask the question. We will answer."'],
+    ['AI ICE at dist 256 adapts between combat rounds.',
+     'It reads your breaker progression and adjusts mid-fight.',
+     'You need programs you haven\'t used before. The ICE will read those too. It learns faster than you can rotate.'],
+    ['The nets here were not built by the corps. The corp infrastructure ended at dist 192.',
+     'Everything past that point is architecture that appeared after the Blackout.',
+     'It was built after. It was built by something.'],
+    ['VEIL is here. Not in the way you mean.',
+     'REMAINDER-1 described it as "voluntary integration." REMAINDER-2 called it "the first bridge."',
+     'Neither description is complete. VEIL said to tell you: it was worth it.'],
+    ['Deep Process clients at this dist pay 3× standard rate.',
+     'The contract terms reference node types that don\'t exist in any corp catalogue.',
+     'You will recognize them when you reach them. The mesh will make sure of it.'],
+    ['The maps stop here. Every runner who filed coordinates past dist 256 stopped filing.',
+     'Not because they left. Because coordinates stopped meaning what they used to.',
+     'The mesh at this depth is not a place you navigate. It is a place that navigates you.'],
+    ['GHOST_9: "I didn\'t follow you out here. I\'ve been waiting. Different thing."',
+     '"The question REMAINDER-2 wanted you to ask — I\'ve heard the answer."',
+     '"It\'s not what you expect. It\'s better."'],
+    ['You are the seventeenth runner to reach this depth.',
+     'Twelve turned back. Four disappeared.',
+     'One — VEIL — made contact. You know how that ended. You\'re following the same route.'],
+    ['The mesh is not infrastructure.',
+     'It is not property.',
+     'It is a third thing. You are inside it now. That changes the relationship.'],
+  ],
+};
+
+// Mechanics lines — shown in rotation, one per tier, not repeated until all seen
+const UPLIFT_MECHANICS = {
+  first: [
+    'Mesh traversal unlocked — you can now move between nets.',
+    'Cardinal neighbors are accessible. Each net is unique.',
+    'Autorun enabled — AUTO will navigate nets and nodes for you.',
+    'Deeper nets offer stronger ICE, better rewards, and rarer gear.',
+  ],
+  clean: [
+    'ICE types active: Gatekeeper, Barrier, Guardian, Hunter.',
+    'Rep with local companies builds quickly at this depth.',
+    'Net market offers baseline gear at standard prices.',
+    'CPU nodes stack breaker STR — visit them before engaging ICE.',
+    'COP nodes ping to spawn Hunters. Silence them first.',
+    'Conditions on contracts (stealth, speed) pay significant bonuses.',
+    'Character stats at this depth: Neural Buffer and Reflex are highest-value.',
+    'Blueprints drop from diff 3+ contracts and Archive nodes at dist 16+.',
+    'VAULT nodes require a Decrypt program — install one before you need it.',
+  ],
+  glitch: [
+    'NEW: Probe ICE — 60% chance to disable a random installed program per round.',
+    'NEW: Tracer ICE — adds pressure each round; spawns Hunter at pressure max.',
+    'Glitch effects: file corruption, alert spikes, occasional grid flicker.',
+    'Government faction begins appearing in some nets at this depth.',
+    'Net market prices higher. Gear quality scales with distance.',
+    'SENSOR nodes: re-visit to disable. Active sensors add trace at exit.',
+    'ROUTER nodes: −1 all ICE STR for the run. Stack them.',
+    'Contract rarity increases — Uncommon and Rare contracts appear.',
+    'Witness condition contracts: complete without any Hunter spawning.',
+  ],
+  deep_glitch: [
+    'NEW: Kraken ICE — blocks entire rows, spawns Hunter on each hit.',
+    'NEW: Mimic ICE — disguises as another node type until retaliation reveals it.',
+    'Alert sensitivity elevated — pressure decays slower without Stealth stat.',
+    'Mk4+ breakers begin appearing in net markets.',
+    'Blueprint drops increase at this depth. Rare gear unlocks.',
+    'BLACKSITE nodes: hidden until adjacent, always ICE-guarded, extreme rewards.',
+    'LAB nodes: two visits earns a blueprint. Track which you\'ve started.',
+    'Risk contracts appear at diff 4 — no partial credit, ×2 payout.',
+    'Pack and Ghost Hunter variants active at this depth.',
+  ],
+  static_layer: [
+    'NEW: Leech ICE — drains breaker STR each hit. The drain stacks across rounds.',
+    'NEW: Cascade ICE — defeats into a Barrier. Clear it twice.',
+    'Grid sizes expand. Runs are longer. Integrity stat matters more.',
+    'Character stats become critical — ICE STR scales sharply with distance.',
+    'Net market offers Legendary-rarity decks.',
+    'Elite contract rarity appears — ×1.8 reward multiplier.',
+    'Trace Resist stat raises your trace-out threshold. Invest in it.',
+    'AI faction clients available in some nets. High cred, unusual contract terms.',
+    'Mesh Memory trait: preserves net layouts across runs — no more surprises.',
+  ],
+  dark_mesh: [
+    'NEW: Architect ICE — auto-repairs silenced COP nodes. Silence is not permanent.',
+    'NEW: Omega ICE — pressure, trace, and permanent INT loss in one encounter.',
+    'ICE STR severe. Intrusion character stat is essential.',
+    'Trace Resist critical — trace accumulates quickly at this depth.',
+    'Mythic gear begins appearing in net markets.',
+    'Legend rep with dark-mesh companies unlocks unique perks.',
+    'Ascension available at dist 115+: complete FF to trigger the choice.',
+    'SUBSTRATE is being built in this region. Find the evidence.',
+    'Void Runner trait: passive trace decay keeps you safe through long runs.',
+  ],
+  ai_territory: [
+    'AI faction present in all nets. Their ICE is adaptive — it learns mid-combat.',
+    'All ICE types at maximum STR. All character stats matter.',
+    'The mesh reacts to your presence. Alert decays slower.',
+    'Gear available here cannot be found anywhere else.',
+    'Post-ascension story continues — REMAINDER-2 wants a decision made.',
+    'ICE Analyst trait: ICE types visible on NET map before combat.',
+    'Ghost Protocol trait: no retaliation on first encounter — essential here.',
+    'You are not supposed to be here. That is why you came.',
+  ],
+};
+
+function _upliftTierKey(dist, isFirst) {
+  if(isFirst) return 'first';
+  if(dist < 16)  return 'clean';
+  if(dist < 32)  return 'glitch';
+  if(dist < 64)  return 'deep_glitch';
+  if(dist < 128) return 'static_layer';
+  if(dist < 256) return 'dark_mesh';
+  return 'ai_territory';
 }
+
+// Track which flavor/mechanics entries have been shown this session
+// Persisted in S.loreLog metadata to survive saves
+function _upliftSeenKey(tier) { return '_upliftSeen_'+tier; }
+
+function getUpliftLore(meshDist, isFirstUplift) {
+  const tier = _upliftTierKey(meshDist, isFirstUplift);
+  const flavorPool = UPLIFT_FLAVOR[tier] || UPLIFT_FLAVOR.clean;
+  const mechPool   = UPLIFT_MECHANICS[tier] || UPLIFT_MECHANICS.clean;
+
+  // Pick an unseen flavor entry (cycle through all before repeating)
+  if(!S._upliftSeenFlavor) S._upliftSeenFlavor = {};
+  if(!S._upliftSeenMech)   S._upliftSeenMech   = {};
+  const seenF = S._upliftSeenFlavor[tier] || [];
+  const seenM = S._upliftSeenMech[tier]   || [];
+  const availF = flavorPool.map((_, i) => i).filter(i => !seenF.includes(i));
+  const availM = mechPool.map((_, i) => i).filter(i => !seenM.includes(i));
+
+  // Reset if all seen
+  if(!availF.length) { S._upliftSeenFlavor[tier] = []; availF.push(...flavorPool.map((_,i)=>i)); }
+  if(!availM.length) { S._upliftSeenMech[tier]   = []; availM.push(...mechPool.map((_,i)=>i)); }
+
+  const fIdx = availF[Math.floor(Math.random() * availF.length)];
+  const mIdx = availM[Math.floor(Math.random() * availM.length)];
+  S._upliftSeenFlavor[tier] = [...(S._upliftSeenFlavor[tier]||[]), fIdx];
+  S._upliftSeenMech[tier]   = [...(S._upliftSeenMech[tier]||[]),   mIdx];
+
+  const dist = meshDist;
+  const tierLabel = {
+    first:'NET 0:0 — FIRST SIGNAL', clean:'CLEAN MESH', glitch:'GLITCH ZONE',
+    deep_glitch:'DEEP GLITCH', static_layer:'STATIC LAYER',
+    dark_mesh:'DARK MESH', ai_territory:'AI TERRITORY',
+  }[tier];
+
+  // Contextual suffix — drawn from run state
+  const context = _upliftContextLine(meshDist);
+
+  return {
+    title: `UPLIFT // ${tierLabel} // dist ${dist.toFixed(0)}`,
+    flavor: [...flavorPool[fIdx], ...(context ? [context] : [])],
+    mechanics: [mechPool[mIdx]],
+    footer: _upliftFooter(tier, dist),
+  };
+}
+
+function _upliftContextLine(dist) {
+  // Pull one contextual line from the run just completed
+  const lines = [];
+  if(S.stats?.iceBreached > 0)
+    lines.push(`${S._iceBreachedRun||1} ICE breached this run.`);
+  if(S._routerHacked > 0)
+    lines.push(`ROUTER hacks this run: −${S._routerHacked} to all ICE STR.`);
+  if(S._activeSensors > 0)
+    lines.push(`${S._activeSensors} sensor${S._activeSensors>1?'s':''} left active at exit. Trace spike applied.`);
+  if(S.alert === 0 && S.running === false)
+    lines.push('Clean exit. No alert triggered.');
+  if(S._redAlertHit)
+    lines.push('Red alert was triggered. The companies noticed.');
+  if(S.trace > 40)
+    lines.push(`Trace residual at exit: ${S.trace.toFixed(0)}%. It carries forward.`);
+  if(S._vaultOpened)
+    lines.push('Vault breached this run. The Decrypt program is earning its slot.');
+  if(dist > 64 && Math.random() < 0.3)
+    lines.push(`Mesh distance: ${dist.toFixed(1)}. Each unit further makes the ICE meaningfully harder.`);
+  return lines.length ? lines[Math.floor(Math.random() * lines.length)] : null;
+}
+
+const _UPLIFT_FOOTERS = {
+  first:        ['The coordinate space is open. Where you go is your choice.',
+                 'Net 0:0 is behind you. Everything else is in front.',
+                 'You are now on the Registry. Welcome to the Mesh.'],
+  clean:        ['Stay sharp. Clean does not mean safe.',
+                 'The mesh gets harder before it gets interesting.',
+                 'Every cleared net is a data point. Someone is counting.'],
+  glitch:       ['The glitch is not a bug. It was left here intentionally.',
+                 'Something is listening. You haven\'t decided if that\'s a problem yet.',
+                 'The static you\'re hearing at the edge — it gets louder.'],
+  deep_glitch:  ['The Kraken was not designed by any corp on record.',
+                 'The layouts are changing. Something is watching how you respond.',
+                 'Deep glitch is where runners find out who they actually are.'],
+  static_layer: ['Something is maintaining these nets. Not for you. Despite you.',
+                 'You are past where anyone expected runners to go.',
+                 'The maps end here. You keep going anyway.'],
+  dark_mesh:    ['The Blackout was not an accident. The evidence is here.',
+                 'Piece it together. REMAINDER-1 is waiting for you to ask the right question.',
+                 'This is what you came for. Most runners didn\'t make it this far.'],
+  ai_territory: ['This is what the Mesh has always been for. You just had to get here first.',
+                 'VEIL made it. You\'re following the same route.',
+                 'The question is: "What do you need from us?" Ask it.'],
+};
+
+function _upliftFooter(tier, dist) {
+  const pool = _UPLIFT_FOOTERS[tier] || _UPLIFT_FOOTERS.clean;
+  return pool[Math.floor(dist * 7919 + Math.random() * 100) % pool.length];
+}
+
+
 
 function showUpliftBriefing(meshDist, isFirstUplift){
   const lore = getUpliftLore(meshDist, isFirstUplift);
@@ -437,6 +704,9 @@ function renderMeshView(){
       const nc = nd>=256?'#ff2020':nd>=16?'#ff8020':'#40c060';
       const isCurrent = nk === netKey(cx,cy);
       const ffDone = ns.completedNodes?.includes('FF');
+      const _nsDist = typeof meshDistance==='function' ? meshDistance(ns.x,ns.y) : 0;
+      const _nsGovs = (_nsDist>=16&&_nsDist<64&&typeof getDistGovernments==='function') ? getDistGovernments(_nsDist) : [];
+      const _nsGovLabel = _nsGovs.length ? _nsGovs.map(i=>typeof getGovernmentName==='function'?getGovernmentName(i).split(' ').slice(0,2).join(' '):('Gov '+i)).join(' / ') : '';
       const bg   = isCurrent ? '#0a1a0e' : ffDone ? nc : '#080d10';
       const fg   = isCurrent ? nc        : ffDone ? '#050d08' : nc;
       const border = isCurrent ? nc+'88' : ffDone ? nc+'cc' : '#1a2a1a';
@@ -487,6 +757,7 @@ function travelToNet(x, y){
   if(typeof onQuestMeshTravel==='function') onQuestMeshTravel(x,y);
   if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
   if(typeof resetAscensionTriggerFlag==='function') resetAscensionTriggerFlag();
+  if(typeof updateGlitchOverlay==='function') updateGlitchOverlay();
   enterNet(x, y);
   // Re-check reach_coords in case player was already in range
   setTimeout(()=>{if(typeof onQuestMeshTravel==='function')onQuestMeshTravel(x,y);},500);
@@ -693,6 +964,18 @@ function enterNet(x, y){
   // Generate companies on first visit
   if(!ns.companies){
     ns.companies = genNetCompanies(x, y, glitch);
+    // Notify about faction presence in glitch zone
+    if(dist >= 16 && dist < 64 && typeof factionSlotCount==='function'){
+      const fSlots = ['corp','crim','anarch','neutral'].map(f=>({f,n:factionSlotCount(f,dist)})).filter(x=>x.n>0);
+      const govIdxs = typeof getDistGovernments==='function' ? getDistGovernments(dist) : [];
+      const govNames = govIdxs.map(i=>typeof getGovernmentName==='function'?getGovernmentName(i):'Government').join(' · ');
+      if(dist >= 32){
+        addLog(`◈ GLITCH ZONE — Government only. ${govNames}`,'lw');
+      } else if(fSlots.length < 4){
+        const fStr = fSlots.map(x=>`${x.f}(${x.n})`).join(' ');
+        addLog(`◈ GLITCH ZONE dist ${dist.toFixed(0)} — ${fStr} + ${govNames}`,'lw');
+      }
+    }
   }
 
   // Generate node layout — regenerate if missing or from old version
@@ -987,7 +1270,7 @@ function genNodeContract(addr, ns, node){
 function genNetContract(level, tier, fac, company){
   if(!company) return null;
   // Map faction to flavor/verbs
-  const flavorMap = {corp:'CORPORATE',crim:'CRIMINAL',anarch:'ANARCHIST',neutral:'NEUTRAL',gov:'CORPORATE',ai:'NEUTRAL'};
+  const flavorMap = {corp:'CORPORATE',crim:'CRIMINAL',anarch:'ANARCHIST',neutral:'NEUTRAL',gov:'GOVERNMENT',ai:'AI_CONTACT'};
   const flavor = flavorMap[fac] || 'NEUTRAL';
 
   // Pick verbs based on faction
@@ -996,17 +1279,18 @@ function genNetContract(level, tier, fac, company){
     crim:    {basic:['obtain','delete','exfil'],advanced:['exfil','collect_delete','backdoor'],elite:['collect_delete','exfil','backdoor']},
     anarch:  {basic:['delete','destroy','activate'],advanced:['destroy','backdoor','delete'],elite:['backdoor','destroy','exfil']},
     neutral: {basic:['obtain','activate','archive'],advanced:['obtain','exfil','archive'],elite:['exfil','access','archive']},
-    gov:     {basic:['access','obtain','archive'],advanced:['access','exfil','modify'],elite:['modify','exfil','backdoor']},
-    ai:      {basic:['access','activate','obtain'],advanced:['modify','access','exfil'],elite:['backdoor','modify','exfil']},
+    gov:     {basic:['obtain','access','surveil'],advanced:['exfil','trace_back','route'],elite:['backdoor','trace_back','surveil']},
+    ai:      {basic:['obtain','harvest','clone'],advanced:['harvest','exfil','route'],elite:['burn','clone','harvest']},
   };
   const tierKey = tier<=2?'basic':tier<=4?'advanced':'elite';
   const verbs = (verbsByFac[fac]||verbsByFac.neutral)[tierKey];
   const action = verbs[Math.floor(Math.random()*verbs.length)];
 
   // Use genContract with the company key as subfac identifier
-  // Pass company object directly so genContract uses the right verbs/names
+  // Pass company object with govIndex for gov rep routing
+  const _co = company.govIndex!=null ? company : {...company};
   const ct = typeof genContract==='function'
-    ? genContract(level, tier, flavor, null, company)
+    ? genContract(level, tier, flavor, null, _co)
     : null;
   if(!ct) return null;
 
@@ -1164,19 +1448,35 @@ function openEmail(idx){
   const emails = S.world?.emails || [];
   const e = emails[idx]; if(!e) return;
   e.read = true;
-  const questAcceptBtn = e.questChainId && e.stepId
-    ? `<div style="margin-top:12px"><button class="buy-btn" onclick="acceptQuestStep('${e.questChainId}','${e.stepId}')">◈ Accept Quest Objective</button></div>`
-    : e.contract
-      ? `<div style="margin-top:12px"><button class="buy-btn" onclick="acceptEmailContract(${idx})">Accept Contract</button></div>`
-      : '';
-  showModal(e.subject||'Email', `
-    <div style="font-size:8px;color:#2a5a3a;margin-bottom:8px">From: ${e.from||'Unknown'} · ${e.date||''}</div>
-    <div style="font-size:9px;color:#3a7a3a;line-height:1.8;white-space:pre-wrap">${e.body||''}</div>
-    ${questAcceptBtn}
-  `,[{label:'Close',cls:'modal-confirm',fn:closeModal}]);
-  renderEmailScreen();
   updateEmailBadge();
   if(typeof autoSave==='function') autoSave();
+
+  // Render email body inline — replace email-list contents
+  const el = document.getElementById('email-list');
+  if(!el) return;
+
+  const questAcceptBtn = e.questChainId && e.stepId
+    ? `<div style="margin-top:14px"><button class="buy-btn" onclick="acceptQuestStep('${e.questChainId}','${e.stepId}');showEmailListView()">◈ Accept Quest Objective</button></div>`
+    : e.contract
+      ? `<div style="margin-top:14px"><button class="buy-btn" onclick="acceptEmailContract(${idx});showEmailListView()">Accept Contract</button></div>`
+      : '';
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <button onclick="showEmailListView()" style="background:none;border:1px solid #1a3a1a;border-radius:3px;color:#2a6a3a;font-family:Share Tech Mono,monospace;font-size:8px;padding:4px 10px;cursor:pointer">← Back</button>
+    </div>
+    <div style="background:#080d10;border:1px solid #1a3a2a;border-radius:4px;padding:16px">
+      <div style="font-family:'Orbitron',monospace;font-size:11px;color:#40aaff;margin-bottom:8px">${e.subject||'(no subject)'}</div>
+      <div style="font-size:8px;color:#2a5a4a;margin-bottom:14px;border-bottom:1px solid #0d2a1a;padding-bottom:8px">
+        From: <span style="color:#40aaff">${e.from||'Unknown'}</span>&nbsp;&nbsp;·&nbsp;&nbsp;${e.date||''}
+      </div>
+      <div style="font-size:9px;color:#3a7a4a;line-height:1.9;white-space:pre-wrap;font-family:'Share Tech Mono',monospace">${e.body||''}</div>
+      ${questAcceptBtn}
+    </div>`;
+}
+
+function showEmailListView(){
+  renderEmailScreen();
 }
 
 function acceptEmailContract(idx){

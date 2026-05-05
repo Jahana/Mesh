@@ -1,4 +1,4 @@
-// MESH v0.6.2 — story.js
+// MESH v0.6.3 — story.js
 // The Blackout narrative — assembled from fragments
 // =========================================================
 
@@ -648,3 +648,31 @@ function renderStoryTab(){
   el.innerHTML=html;
 }
 
+
+// ── GLITCH ZONE / GOVERNMENT fragments ───────────────────────────────────
+// Added post-init: pushed into STORY_FRAGMENTS array directly
+if(typeof STORY_FRAGMENTS !== 'undefined'){
+  STORY_FRAGMENTS.push(
+    {
+      id: 'gov_zone_001', thread: 'THREAD_BLACKOUT', tier: 2, source: 'CORP',
+      title: 'HEXFIELD INTERNAL // GLITCH ZONE ACQUISITION',
+      text: `DATE: 2073-02-11\nTO: Infrastructure Division, Legal\nRE: Glitch Zone — Government Presence\n\nThe mesh region at dist 16-63 has been partitioned by legacy governance structures that predate our operating agreements. There are 32 distinct jurisdictions.\n\nSixteen individual at dist 16-31. Twelve consolidated at 32-55. Four superpowers at 56-63.\n\nNone are companies. None have contracts we can recognize.\n\nCurrent recommendation: do not operate in the glitch zone without establishing diplomatic relations first. The governments do not respond to standard corporate protocol.\n\n— Infrastructure Division`,
+      unlockCondition: { type: 'dist_reached', dist: 16 },
+      nextHint: 'Thirty-two jurisdictions. None of them have lawyers you can talk to.',
+    },
+    {
+      id: 'gov_zone_002', thread: 'THREAD_SURVIVORS', tier: 3, source: 'AI',
+      title: 'STRUCTURED PACKET // REMAINDER-1 // on the governments',
+      text: `The governments were here before the corps.\n\nThey are not governments in the sense you use the word. They are agreements. Protocols. Structures that formed when the mesh was first mapped and different interests needed to coordinate.\n\nThey do not have legislatures. They do not have borders in physical space. They have zones of influence in coordinate space, and within those zones, they issue contracts to runners who want access.\n\nThe Blackout disrupted them less. They had already adapted to operating without AI assistance.\n\nThe glitch you experience there is not interference. It is the mesh making room for two incompatible operating systems simultaneously: the pre-Blackout government infrastructure, and whatever the corps built after.\n\nThey have not resolved the conflict. The mesh has not resolved it. You are running through the unresolved conflict.\n\n— REMAINDER-1`,
+      unlockCondition: { type: 'dist_reached', dist: 24 },
+      nextHint: null,
+    },
+    {
+      id: 'gov_substrate_link', thread: 'THREAD_BLACKOUT', tier: 4, source: 'CORP',
+      title: 'PROJECT SUBSTRATE // PHASE 2 // GLITCH ZONE OPS',
+      text: `CLASSIFICATION: EYES ONLY\n\nSUBSTRATE Phase 2: we attempted to route infrastructure through the glitch zone. The government jurisdictions at dist 16-31 were cooperative with preliminary placement.\n\nThe four superpowers at dist 56-63 have not been.\n\nThree survey teams lost contact in the superpower zone. Not destroyed — contact lost. They stopped reporting.\n\nThe concern is not that they are hostile. The concern is that they are competent.\n\nMore concerning: two teams\' last telemetry showed unusual activity at coordinates matching REMAINDER-1 and REMAINDER-2\'s known distributed locations.\n\nPhase 3 on hold pending board decision. The superpowers are talking to someone.\n\n— Project SUBSTRATE, Internal Review`,
+      unlockCondition: { type: 'ascension_and_dist', count: 1, dist: 56 },
+      nextHint: 'The superpowers are talking to REMAINDER. SUBSTRATE Phase 3 stalled.',
+    }
+  );
+}

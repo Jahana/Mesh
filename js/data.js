@@ -1,4 +1,4 @@
-// MESH v0.6.2 — data.js
+// MESH v0.6.3 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -186,14 +186,14 @@ const BASE_ICE={
   GUARDIAN:  {minMeshDist:0,icon:'◈',baseStr:2,retaliation:2,badge:'ibgu',label:'GARD'},
   HUNTER:    {minMeshDist:0,icon:'☠',baseStr:3,retaliation:3,badge:'ibh',label:'HUNT'},
   PROBE:     {minMeshDist:4,icon:'⊙',baseStr:3,retaliation:1,badge:'ibpr',label:'PROB'},
-  BLACK_ICE: {minMeshDist:8,icon:'◼',baseStr:6,retaliation:5,badge:'ibbl',label:'BLCK',prestigeReq:2},
+  BLACK_ICE: {minMeshDist:8,icon:'◼',baseStr:6,retaliation:5,badge:'ibbl',label:'BLCK'},
   TAR_PIT:   {minMeshDist:12,icon:'⬢',baseStr:2,retaliation:1,badge:'ibtp',label:'TAR'},
   TRACER:    {minMeshDist:16,icon:'◎',baseStr:2,retaliation:1,badge:'ibtr',label:'TRAC'},
   KRAKEN:    {minMeshDist:32,icon:'⬡⬡',baseStr:5,retaliation:3,badge:'ibk', label:'KRAK',rowBlocker:true},
   MIMIC:     {minMeshDist:48,icon:'◈',baseStr:3,retaliation:2,badge:'ibm', label:'MIMC',disguised:true},
   LEECH:     {minMeshDist:64,icon:'⊗',baseStr:3,retaliation:2,badge:'ibl', label:'LEEC',strDrain:1},
   CASCADE:   {minMeshDist:96,icon:'◉',baseStr:4,retaliation:2,badge:'ibc', label:'CASC',spawnsOnDeath:'BARRIER'},
-  ARCHITECT: {minMeshDist:128,icon:'⬟',baseStr:3,retaliation:2,badge:'iba', label:'ARCH',prestigeReq:9,selfRepair:true},
+  ARCHITECT: {minMeshDist:128,icon:'⬟',baseStr:3,retaliation:2,badge:'iba', label:'ARCH',selfRepair:true},
   OMEGA:     {minMeshDist:192,icon:'◼◎',baseStr:7,retaliation:4,badge:'ibo', label:'OMEG',multiEffect:true},
 };
 const NODE_DEF={
@@ -213,7 +213,7 @@ const NODE_DEF={
   FIREWALL: {icon:'▣',label:'FWALL',   color:'#ff4040', desc:'Raises alert unless breaker STR exceeds firewall level.'},
   TERMINAL: {icon:'⌨',label:'TERM',    color:'#80ff40', desc:'Reveals all COP locations and silences nearest one.'},
   ARCHIVE:  {icon:'◎',label:'ARCH',    color:'#ffa040', desc:'Historical data — sells for cred at exit, always identified.'},
-  // v0.6.2 additions
+  // v0.6.3 additions
   ROUTER:   {icon:'⇌',label:'ROUT',    color:'#40ddff', desc:'Network hub. Reduces all ICE STR by 1 for run. Reveals patrol paths.'},
   SENSOR:   {icon:'◉',label:'SENS',    color:'#ff6688', desc:'Early warning node. If not disabled, +20 trace spike at exit.'},
   SERVER:   {icon:'▣',label:'SERV',    color:'#aaffdd', desc:'Active host. Generates cred per tick while adjacent. Bonus on clean exit.'},
@@ -267,6 +267,37 @@ const BASE_COMBAT_TICKS = 12;   // combat round: 1.2s baseline
 const BASE_SCAN_TICKS   = 15;   // scan one file: 1.5s baseline
 const BASE_DOWNLOAD_TICKS = 15; // download one file: 1.5s baseline
 const BASE_DECRYPT_TICKS  = 15; // decrypt one file: 1.5s baseline
+
+// Node interaction ticks — how long the player is stalled at each node type
+// Applied in queueCellAction as a per-nodeType override
+const NODE_INTERACT_TICKS = {
+  // Instant feel — cosmetic/minor
+  EMPTY:     0,    // no stall
+  ENTRY:     0,
+  RAM:       8,    // quick file grab
+  IO:        8,    // port tap
+  // Fast interactions
+  RELAY:     12,   // map pulse — brief
+  PROXY:     12,   // reroute — brief
+  SENSOR:    15,   // disable sequence
+  ROUTER:    18,   // network reroute
+  // Standard interactions
+  CPU:       20,   // full processing cycle
+  GPU:       20,   // feed intercept
+  TERMINAL:  25,   // COP sweep
+  COP:       20,   // silence sequence
+  NEXUS:     20,   // link resolution
+  // Involved interactions
+  SERVER:    25,   // tap and extract
+  LAB:       30,   // research access
+  ARCHIVE:   25,   // historical retrieval
+  FIREWALL:  22,   // breach attempt
+  VAULT:     35,   // locked extraction
+  // Serious interactions
+  BLACKSITE: 40,   // dark node — always dangerous, takes time
+  DATASTORE: 0,    // datastore has its own queue-based timing
+  EXIT:      0,    // FF handled separately
+};
 const BASE_SOOTHE_TICKS = 15;   // soothe cooldown: 1.5s baseline
 
 // Tick reduction per tier (for breakers/programs)
@@ -342,7 +373,7 @@ const CV={
   access:   {nodeTypes:['VAULT'],              action:'collect'},
   terminal: {nodeTypes:['TERMINAL'],           action:'activate'},
   archive:  {nodeTypes:['ARCHIVE'],            action:'collect'},
-  // v0.6.2 additions
+  // v0.6.3 additions
   intercept_relay:{nodeTypes:['RELAY','GPU'],    action:'display'},
   surveil:  {nodeTypes:['SENSOR'],               action:'activate'},
   route:    {nodeTypes:['ROUTER'],               action:'activate'},
@@ -414,7 +445,7 @@ const SUBFACTIONS={
     parent:'crim', name:"Runners' Guild", color:'#c09040',
     flavor:'CRIMINAL',
     basic:['obtain','delete','exfil'],advanced:['exfil','collect_delete','access'],elite:['exfil','collect_delete','backdoor'],
-    conditions:['speed'],credMult:1.2,repMult:1.1,
+    conditions:['speed','witness'],credMult:1.2,repMult:1.1,
     names:['Quick Score','Runner Contract','Guild Job','Speed Run',
            'In-and-Out','Precision Lift','Timed Extraction','Guild Commission'],
   },
@@ -430,7 +461,7 @@ const SUBFACTIONS={
     parent:'crim', name:'Ghost Syndicate', color:'#90a0c0',
     flavor:'CRIMINAL',
     basic:['obtain','access','exfil'],advanced:['access','exfil','collect_delete'],elite:['exfil','access','backdoor'],
-    conditions:['stealth'],credMult:1.4,repMult:1.1,
+    conditions:['stealth','witness'],credMult:1.4,repMult:1.1,
     names:['Ghost Protocol','Silent Lift','Phantom Job','Zero Trace Extraction',
            'Clean Sweep','Vault Ghost Run','Syndicate Sanctioned','No Witnesses'],
   },
@@ -540,6 +571,8 @@ const SUBFAC_BY_PARENT={
   crim:   ['runners_guild','fixer_network','ghost_syndicate','the_cartel','deadcode'],
   anarch: ['reclaim','the_static','red_cell','null_signal','ironclad'],
   neutral:['freelance','data_brokers','mesh_collective','shadow_market','cipher'],
+  gov:    ['bureau_intel','enforcement_div','regulatory_net'],
+  ai:     ['pattern_echo','signal_remnant','deep_process'],
 };
 
 // Legacy FACTION_VERBS shim — genContract uses subfactions directly now

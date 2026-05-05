@@ -1,4 +1,4 @@
-// MESH v0.6.2 — netgen.js
+// MESH v0.6.3 — netgen.js
 // =======================
 // Net-level generation: company names, node layout for 16×16 nets
 
@@ -59,22 +59,40 @@ function genCompanyName(faction, netX, netY, index){
 
 function genNetCompanies(netX, netY, glitchLevel){
   const dist = typeof meshDistance==='function' ? meshDistance(netX,netY) : 0;
-  // Gov appears at dist 16+, AI at dist 64+
-  const factions = dist >= 64 ? ['corp','crim','anarch','neutral','gov','ai'] :
-                   dist >= 16 ? ['corp','crim','anarch','neutral','gov'] :
-                               ['corp','crim','anarch','neutral'];
   const result = {};
+
+  // ── Gov zone (dist 16-63): use government system ──────────────────────
+  if(dist >= 16 && dist < 64 && typeof getGovCompaniesForNet==='function'){
+    const govCos = getGovCompaniesForNet(netX, netY, dist);
+    result['gov'] = govCos;
+    // Non-gov factions fade out across the glitch zone
+    const facSlots = typeof factionSlotCount==='function' ? factionSlotCount : ()=>3;
+    ['corp','crim','anarch','neutral'].forEach(fac => {
+      const count = facSlots(fac, dist);
+      if(count <= 0) return; // faction dropped out
+      result[fac] = [];
+      for(let i = 0; i < count; i++){
+        const key = `${fac}_${(netX>>>0).toString(16)}_${(netY>>>0).toString(16)}_${i}`;
+        result[fac].push({
+          name: genCompanyName(fac, netX, netY, i),
+          faction: fac, index: i, key,
+        });
+      }
+    });
+    return result;
+  }
+
+  // ── Standard faction generation (clean mesh + static+ ) ───────────────
+  const factions = dist >= 64 ? ['corp','crim','anarch','neutral','gov','ai'] :
+                               ['corp','crim','anarch','neutral'];
   factions.forEach(fac => {
     const count = fac === 'gov' ? 1 : fac === 'ai' ? 1 : 3;
     result[fac] = [];
     for(let i = 0; i < count; i++){
-      // Stable key for rep tracking: deterministic per net+faction+index
       const key = `${fac}_${(netX>>>0).toString(16)}_${(netY>>>0).toString(16)}_${i}`;
       result[fac].push({
         name: genCompanyName(fac, netX, netY, i),
-        faction: fac,
-        index: i,
-        key,  // used as subrep key in ns.rep
+        faction: fac, index: i, key,
       });
     }
   });
@@ -99,7 +117,7 @@ function availNodeTypes(meshDist){
   if(meshDist >= 3){ types.FIREWALL = 5; types.TERMINAL = 4; }
   if(meshDist >= 4){ types.VAULT = 4; types.PROXY = 4; types.ARCHIVE = 4; }
   if(meshDist >= 8){ types.COP = (types.COP||6) + 2; types.FIREWALL = (types.FIREWALL||5) + 2; }
-  // v0.6.2 new node types
+  // v0.6.3 new node types
   if(meshDist >= 3){ types.ROUTER = 4; }
   if(meshDist >= 5){ types.SENSOR = 4; types.SERVER = 3; }
   if(meshDist >= 8){ types.NEXUS = 2; types.LAB = 3; }

@@ -173,14 +173,18 @@ function autoPickNextNode(){
   // Quest faction preference: sort nodes by faction match
   const questFac = typeof questAutorunTargetFaction==='function' ? questAutorunTargetFaction() : null;
   if(questFac && ns.companies){
-    const factionNodes = accessible.filter(n => {
-      if(ns.completedNodes.includes(n.addr)) return false;
-      const companyFac = typeof nodeFaction==='function' ? nodeFaction(n.col, n.row) : null;
-      return companyFac === questFac;
-    });
-    if(factionNodes.length) {
-      factionNodes.sort((a,b)=>(b.col+b.row)-(a.col+a.row));
-      return factionNodes[0].addr;
+    // Only target quest faction if it actually has companies in this net
+    const questFacPresent = ns.companies[questFac]?.length > 0;
+    if(questFacPresent){
+      const factionNodes = accessible.filter(n => {
+        if(ns.completedNodes.includes(n.addr)) return false;
+        const companyFac = typeof nodeFaction==='function' ? nodeFaction(n.col, n.row) : null;
+        return companyFac === questFac;
+      });
+      if(factionNodes.length) {
+        factionNodes.sort((a,b)=>(b.col+b.row)-(a.col+a.row));
+        return factionNodes[0].addr;
+      }
     }
   }
 

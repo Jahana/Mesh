@@ -1,4 +1,4 @@
-// MESH v0.6.2 — mesh.js
+// MESH v0.6.3 — mesh.js
 // =====================
 // Mesh coordinate space: two 32-bit unsigned integers (x, y)
 // Distance from origin: sqrt(x^2 + y^2)
@@ -34,10 +34,16 @@ function meshDistanceCurrent(){
 function meshGlitchLevel(dist){
   if(dist === undefined) dist = meshDistanceCurrent();
   if(dist < 16)   return 0; // clean
-  if(dist < 64)   return 1; // minor glitches
-  if(dist < 128)  return 2; // moderate
-  if(dist < 256)  return 3; // severe
-  return 4; // AI territory
+  if(dist < 64){
+    // Glitch zone: graduated 1-3 within the zone
+    const t = (dist - 16) / 48; // 0 at dist 16, 1 at dist 64
+    if(t < 0.33) return 1;      // minor: dist 16-31
+    if(t < 0.67) return 2;      // moderate: dist 32-47
+    return 3;                    // severe: dist 48-63
+  }
+  if(dist < 128)  return 3; // static layer
+  if(dist < 256)  return 4; // dark mesh
+  return 5; // AI territory
 }
 
 function inAITerritory(){

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MESH v0.6.2</title>
+<title>MESH v0.6.3</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -431,6 +431,11 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 .ts-name-input{font-family:'Share Tech Mono',monospace;font-size:12px;background:#060d10;border:1px solid #1a4a2a;color:#40ff80;padding:10px 12px;border-radius:3px;width:100%;box-sizing:border-box;outline:none;margin-top:4px;}
 .ts-name-input:focus{border-color:#40ff80;}
 .ts-label{font-size:8px;color:#2a5a3a;font-family:'Share Tech Mono',monospace;margin-bottom:4px;}
+  @keyframes emailPulse {
+    0%   { transform:scale(1);   box-shadow:none; }
+    50%  { transform:scale(1.06);box-shadow:0 0 8px #40aaff88; }
+    100% { transform:scale(1);   box-shadow:none; }
+  }
 </style>
 </head>
 <body>
@@ -473,7 +478,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="ts-scanline"></div>
   <div class="ts-logo">MESH</div>
   <div class="ts-tagline">"All the nets that ever were, are, or will be make up the Mesh"</div>
-  <div class="ts-version">OS v0.6.2 — IDLE NETRUNNER</div>
+  <div class="ts-version">OS v0.6.3 — IDLE NETRUNNER</div>
   <div id="ts-content" class="ts-btns">
     <!-- filled by JS -->
   </div>
@@ -741,6 +746,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 
 <script src="js/data.js"></script>
   <script src="js/mesh.js"></script>
+<script src="js/glitch.js"></script>
   <script src="js/netgen.js"></script>
   <script src="js/world.js"></script>
 <script src="js/state.js"></script>

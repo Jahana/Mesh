@@ -1,4 +1,4 @@
-// MESH v0.6.2 — main.js
+// MESH v0.6.3 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -148,6 +148,7 @@ function gameTick(ts){
   if(S.tick%3===0){renderTopBar();if(typeof renderQuestStatus==='function')renderQuestStatus();}
   if(S.tick%10===0&&S.running&&document.getElementById('tab-net-content')?.style.display!=='none'&&typeof renderNetMap==='function') renderNetMap();
   if(S.tick%30===0&&typeof questTick==='function') questTick();
+  if(S.tick%30===0&&typeof updateGlitchOverlay==='function') updateGlitchOverlay();
   if(S.tick%30===0&&typeof applyTraitPassiveDecay==='function') applyTraitPassiveDecay();
   if(S.tick%300===0) tickIdleIncome();
   if(S.tick%600===0&&typeof checkAscensionStory==='function') checkAscensionStory();

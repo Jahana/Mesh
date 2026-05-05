@@ -25,8 +25,15 @@ function nextPos(){
 
 function queueCellAction(r, c){
   const cell=S.grid[r]?.[c]; if(!cell) return;
-  let ticks=moveTicks();
-  if(cell.ice&&!BASE_ICE[cell.ice]?.mobile) ticks=combatTicks()*2;
+  let ticks;
+  if(cell.ice&&!BASE_ICE[cell.ice]?.mobile){
+    // ICE combat: combat ticks × 2
+    ticks=combatTicks()*2;
+  } else {
+    // Per-node interaction ticks — fallback to moveTicks for unknown types
+    const nodeTicks=typeof NODE_INTERACT_TICKS!=='undefined'?NODE_INTERACT_TICKS[cell.nodeType]:undefined;
+    ticks = (nodeTicks!=null && nodeTicks>0) ? nodeTicks : moveTicks();
+  }
   // CPU overload reduces action tick cost
   const mod=S._actionTickMod||0;
   ticks=Math.max(4, ticks+mod);
@@ -573,6 +580,16 @@ function autoDoObj(cell,ct,obj){
   if((a==='collect'||a==='collect_delete')&&cell.trap==='DATA_BOMB'&&!cell.trapTriggered){
     triggerTrap(cell);
   }
+  // VAULT: access verb requires Decrypt
+  if((a==='collect')&&cell.nodeType==='VAULT'&&!cell.vaultOpened){
+    const hasDecrypt=getByEffect('decrypt').length>0;
+    if(!hasDecrypt){ addLog('◆ VAULT: Decrypt program required','lw'); return; }
+    // Let VAULT handler in handleNodeArrival fire if not already done
+    if(!cell.vaultOpened) handleNodeArrival(cell);
+    // Now check if vault is open
+    if(cell.vaultOpened) completeObj(ct,obj);
+    return;
+  }
   if(a==='collect'||a==='collect_delete'){
     if(obj.targetFile){
       // Guarantee space — evict lowest-value non-preloaded non-contract file if needed
@@ -612,7 +629,7 @@ function autoDoObj(cell,ct,obj){
     }else addLog('Need Intercept program installed for display contract','lw');
   }
   else if(a==='destroy'){cell.destroyed=true;completeObj(ct,obj);}
-  // ── v0.6.2 new verb handlers ──────────────────────────────────────────
+  // ── v0.6.3 new verb handlers ──────────────────────────────────────────
   else if(a==='corrupt'){
     // Degrade all files on node by 50%
     if(cell.files) cell.files.forEach(f=>{ f.credValue=Math.floor((f.credValue||0)*0.5); f.corrupted=true; });
@@ -628,8 +645,9 @@ function autoDoObj(cell,ct,obj){
     completeObj(ct,obj);
   }
   else if(a==='burn'){
-    // Destroy node completely — high trace spike but grants bonus cred
+    // Destroy node and extract — high trace spike
     cell.destroyed=true;
+    cell.blacksiteDone=true; // prevent double-trigger on blacksite
     if(cell.files) cell.files.forEach(f=>{ if(f.credValue>0) tryStoreFile({...f,id:uid(),preloaded:false},`◼ BURN [${cell.r},${cell.c}]`); });
     cell.files=[];
     addPressure(PRESSURE_PER_ALERT*0.4);
@@ -916,6 +934,10 @@ function buildGrid(){
   if(meshDist>=2){ npool.push('GPU','RELAY'); }
   if(meshDist>=3){ npool.push('FIREWALL','TERMINAL'); }
   if(meshDist>=4){ npool.push('VAULT','PROXY','ARCHIVE'); }
+  if(meshDist>=3){ npool.push('ROUTER'); }
+  if(meshDist>=5){ npool.push('SENSOR','SERVER'); }
+  if(meshDist>=8){ npool.push('LAB'); }
+  if(meshDist>=16){ npool.push('BLACKSITE'); }
   // More EMPTY at low mesh distances
   for(let i=0;i<Math.max(0,4-Math.floor(meshDist));i++) npool.push('EMPTY');
   const iceChance=Math.min(0.60,0.12+tier*0.05);
@@ -932,6 +954,23 @@ function buildGrid(){
           const disguisePool=['RAM','IO','CPU','GPU','DATASTORE'];
           cell.mimicDisguise=pick(disguisePool);
         }
+      }
+      // BLACKSITE always gets ICE
+      if(cell.nodeType==='BLACKSITE'&&!cell.ice){
+        const _bsIce=availICE().filter(k=>!BASE_ICE[k]?.mobile);
+        cell.ice=_bsIce.length?pick(_bsIce):'GUARDIAN';
+      }
+      if(cell.nodeType==='NEXUS'&&!cell.nexusLink){
+        // Link to a random already-placed non-trivial cell
+        const linkable=[];
+        for(let lr=0;lr<S.rows;lr++) for(let lc=0;lc<S.cols;lc++){
+          const nc=S.grid[lr]?.[lc];
+          if(nc&&nc.id!==cell.id&&!['EMPTY','ENTRY','EXIT','NEXUS'].includes(nc.nodeType)) linkable.push(nc.id);
+        }
+        if(linkable.length) cell.nexusLink=linkable[Math.floor(Math.random()*linkable.length)];
+      }
+      if(cell.nodeType==='FIREWALL'&&!cell.firewallStr){
+        cell.firewallStr=Math.max(2,Math.floor(iceStr('BARRIER',curTier())*0.8+Math.random()*4));
       }
       if(cell.nodeType==='RAM')cell.files.push(mkFile());
       if(cell.nodeType==='DATASTORE'){

@@ -41,8 +41,32 @@ function generateBoard(){
   S.board=[];
 
   // Contracts now come from net nodes — board is legacy path for non-net runs
+  const _dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
   for(let i=0;i<count;i++){
-    S.board.push(genContract(S.level,tier));
+    if(_dist >= 32 && typeof getDistGovernments==='function'){
+      // Deep glitch: gov-only contracts on the home board
+      const govIdxs = getDistGovernments(Math.floor(_dist));
+      const govIdx  = govIdxs[Math.floor(Math.random()*govIdxs.length)];
+      const govCo   = typeof getGovernment==='function' ? {
+        name: getGovernmentName(govIdx), faction:'gov', govIndex:govIdx,
+        key:'gov_'+govIdx, color: getGovernment(govIdx).color,
+      } : null;
+      S.board.push(govCo ? genContract(S.level,tier,'GOVERNMENT',null,govCo) : genContract(S.level,tier));
+    } else if(_dist >= 16 && typeof factionSlotCount==='function'){
+      // Glitch zone: weighted toward gov, fewer other factions
+      const roll = Math.random();
+      const govWeight = (_dist-16)/16; // 0 at dist16, 1 at dist32
+      if(roll < govWeight*0.6 && typeof getDistGovernments==='function'){
+        const govIdxs = getDistGovernments(Math.floor(_dist));
+        const govIdx  = govIdxs[Math.floor(Math.random()*govIdxs.length)];
+        const govCo   = {name:getGovernmentName(govIdx),faction:'gov',govIndex:govIdx,key:'gov_'+govIdx};
+        S.board.push(genContract(S.level,tier,'GOVERNMENT',null,govCo));
+      } else {
+        S.board.push(genContract(S.level,tier));
+      }
+    } else {
+      S.board.push(genContract(S.level,tier));
+    }
   }
 
   S.active=[];S.storage=[];
@@ -109,23 +133,30 @@ function genContract(level,tier,forceFlavor,forceSubfac,forceCompany){
   let sfKey, sf, flavor;
   if(forceCompany){
     sfKey = forceCompany.key;
-    const flavorMap={corp:'CORPORATE',crim:'CRIMINAL',anarch:'ANARCHIST',neutral:'NEUTRAL',gov:'CORPORATE',ai:'NEUTRAL'};
+    const flavorMap={corp:'CORPORATE',crim:'CRIMINAL',anarch:'ANARCHIST',neutral:'NEUTRAL',gov:'GOVERNMENT',ai:'AI_CONTACT'};
     flavor = forceFlavor || flavorMap[forceCompany.faction] || 'NEUTRAL';
+    // Try to use a real subfaction definition if one matches
+    const _realSf=SUBFACTIONS[sfKey];
+    if(_realSf&&_realSf.parent===forceCompany.faction){
+      sf=_realSf; flavor=_realSf.flavor||flavor;
+    } else {
     // Build a minimal sf-compatible object from faction defaults
     const verbsByFac={
       corp:   {basic:['obtain','access','delete'],advanced:['exfil','access','modify'],elite:['exfil','backdoor','modify'],conditions:['stealth'],credMult:1.1,repMult:0.8},
       crim:   {basic:['obtain','delete','exfil'],advanced:['exfil','collect_delete','backdoor'],elite:['collect_delete','exfil','backdoor'],conditions:[],credMult:1.2,repMult:0.6},
       anarch: {basic:['delete','destroy','activate'],advanced:['destroy','backdoor','delete'],elite:['backdoor','destroy','exfil'],conditions:['speed'],credMult:0.9,repMult:1.1},
       neutral:{basic:['obtain','activate','archive'],advanced:['obtain','exfil','archive'],elite:['exfil','access','archive'],conditions:[],credMult:1.0,repMult:0.7},
-      gov:    {basic:['access','obtain','archive'],advanced:['access','exfil','modify'],elite:['modify','exfil','backdoor'],conditions:['stealth'],credMult:1.3,repMult:1.0},
-      ai:     {basic:['access','activate','obtain'],advanced:['modify','access','exfil'],elite:['backdoor','modify','exfil'],conditions:[],credMult:1.5,repMult:0.5},
+      gov:    {basic:['obtain','access','surveil'],advanced:['exfil','trace_back','route'],elite:['backdoor','trace_back','surveil'],conditions:['stealth'],credMult:1.8,repMult:0.9},
+      ai:     {basic:['obtain','harvest','clone'],advanced:['harvest','exfil','route'],elite:['burn','clone','harvest'],conditions:[],credMult:2.2,repMult:0.6},
     };
     const fv = verbsByFac[forceCompany.faction] || verbsByFac.neutral;
     sf = {key:sfKey, name:forceCompany.name, parent:forceCompany.faction,
       flavor, ...fv,
+      govIndex: forceCompany.govIndex ?? null, // for gov rep routing
       names:[forceCompany.name+' Contract', forceCompany.name+' Op', forceCompany.name+' Job',
              'From '+forceCompany.name, forceCompany.name+' Request'],
     };
+    } // end else (no real subfaction)
   } else {
     sfKey = forceSubfac || pickSubfaction();
     sf = SUBFACTIONS[sfKey] || SUBFACTIONS.freelance;
@@ -159,13 +190,18 @@ function genContract(level,tier,forceFlavor,forceSubfac,forceCompany){
     objs.push({id:uid(),verbKey:vk,nodeType:nt,action:verb.action,file,targetFile,targetNodeId:null,done:false,failed:false,desc:buildDesc(verb.action,nt,file,targetFile)});
   }
 
-  const credScale=(1+tier*0.3)*(fd.credMult||1.0);
-  // In a net: boost cred reward with mesh distance
-  const meshDistScale = (S.mesh?.currentNet && typeof meshDistanceCurrent==='function')
-    ? (1 + meshDistanceCurrent() * 0.04) : 1;
-  const repScale=fd.repMult||1.0;
-  const baseCred=Math.floor(diff*rnd(40,70)*count*credScale*(typeof meshDistScale!=='undefined'?meshDistScale:1));
-  const baseXP=Math.floor(diff*25*(1+Math.floor(tier/3))*repScale);
+  const _dist = (S.mesh?.currentNet && typeof meshDistanceCurrent==='function') ? meshDistanceCurrent() : 0;
+  const credMult = fd.credMult || 1.0;
+  const repScale = fd.repMult || 1.0;
+
+  // Cred: flat floor * diff + dist-scaled bonus — no double-dip
+  // Floor grows linearly with dist so minimum is always meaningful
+  const _credFloor = Math.floor(diff * 30 * (1 + _dist * 0.06)) * count;
+  const _credRoll  = Math.floor(diff * rnd(20,60) * (1 + tier * 0.25)) * count;
+  const baseCred   = Math.floor((_credFloor + _credRoll) * credMult);
+
+  // Rep: grows with dist — runners deeper in earn faster faction trust
+  const baseXP = Math.floor(diff * 25 * (1 + Math.floor(tier/3) + _dist * 0.04) * repScale);
 
   // Conditions
   let condition=null;
@@ -174,6 +210,8 @@ function genContract(level,tier,forceFlavor,forceSubfac,forceCompany){
     condition=pick(condPool);
   }else if(diff>=3&&Math.random()<0.2){
     condition='speed';
+  }else if(diff>=3&&['CRIMINAL','ANARCHIST'].includes(flavor)&&Math.random()<0.15){
+    condition='witness'; // no Hunter spawned
   }
 
   // Punch-above-weight bonus
@@ -186,11 +224,25 @@ function genContract(level,tier,forceFlavor,forceSubfac,forceCompany){
   const namePool=[...(sf.names||[])];
   const name=namePool.length?pick(namePool):genName();
 
+  // Contract rarity — drives visual badge and reward multiplier
+  // Rare: diff 4 + condition + high dist · Uncommon: diff 3+ or condition
+  const _distZ = _dist || 0;
+  const _rarity = (diff>=4 && condition && _distZ>=16) ? 'elite'
+    : (diff>=4 || (diff>=3 && condition)) ? 'rare'
+    : (diff>=3 || condition) ? 'uncommon'
+    : 'common';
+  const _rarityMult = {common:1.0, uncommon:1.15, rare:1.4, elite:1.8}[_rarity];
+  const finalCred = Math.floor(baseCred * _rarityMult);
+  const finalBonusCred = condition ? Math.floor(finalCred*0.6) : 0;
+
+  // Risk contract: diff 4 + elite subfac = all-or-nothing, 2× payout
+  const _isRisk = _rarity==='elite' && Math.random()<0.3;
+
   return{id:uid(),name,flavor,subfac:sfKey,diff,verbKey:vk,objectives:objs,duration,
-    condition,repReq,
-    reward:{cred:baseCred,xp:baseXP,
-      bonusCred:condition?Math.floor(baseCred*0.4):0,
-      bonusRep:condition?baseXP*2:0,
+    condition,repReq,rarity:_rarity,isRisk:_isRisk,govIndex:sf.govIndex??null,
+    reward:{cred:finalCred,xp:baseXP,
+      bonusCred:finalBonusCred,
+      bonusRep:condition?Math.floor(baseXP*2.5):0,
       punchBonus,
     },
     taken:false,conditionMet:false,
@@ -368,6 +420,8 @@ function jackOut(){addLog('⏏ Jack out','lw');finishRun(false,'jackout');}
 
 function finishRun(success,reason='complete'){
   S.running=false;S.combat=null;S.player.stalled=false;
+  if(typeof updateGlitchOverlay==='function') updateGlitchOverlay();
+  if(typeof stopGlitchCellTick==='function') stopGlitchCellTick();
   document.getElementById('combat-panel').classList.remove('active');
   // SENSOR trace spike — active sensors add trace at exit
   if((S._activeSensors||0)>0&&success){
@@ -394,7 +448,8 @@ function finishRun(success,reason='complete'){
     const facKey=flavorToRepKey(ct.flavor);
 
     if(allDone){
-      runCred+=ct.reward.cred;runCts++;
+      const _riskMult = ct.isRisk ? 2.0 : 1.0;
+      runCred+=Math.floor(ct.reward.cred*_riskMult);runCts++;
       let repGain=ct.reward.xp;
       let bonusLog='';
       // Quest progress tracking
@@ -413,20 +468,38 @@ function finishRun(success,reason='complete'){
           bonusLog=' (stealth failed — Red alert hit)';
         }
       }else if(ct.condition==='speed'){
-        const t=S.contractTimers[ct.id];
-        // Speed condition: completed in first 50% of time
-        const ticksDone=t?(t.totalTicks-(t.ticksLeft||0)):t?.totalTicks||0;
-        const elapsed=ticksDone*(100/Math.max(1,S.speed)); // approximate ms
-        if(t&&t.ticksLeft>t.totalTicks*0.5){
+        // Speed: scale limit by grid size — larger grids get more time
+        const _elapsed = Date.now() - (S._runStartTime || Date.now());
+        const _gridCells = (S.rows||4) * (S.cols||4);
+        const _speedLimit = Math.max(45000, Math.min(180000, _gridCells * 1200)); // 1.2s/cell, 45-180s
+        if(_elapsed < _speedLimit){
           runCred+=ct.reward.bonusCred;repGain+=ct.reward.bonusRep;
-          bonusLog=` +${ct.reward.bonusCred}₵ speed bonus`;
+          bonusLog=` +${ct.reward.bonusCred}₵ speed bonus (${Math.round(_elapsed/1000)}s)`;
           ct.conditionMet=true;
         }else{
-          bonusLog=' (speed bonus missed)';
+          bonusLog=` (speed bonus missed — ${Math.round(_elapsed/1000)}s, need <60s)`;
+        }
+      } else if(ct.condition==='witness'){
+        // Witness: complete without spawning any Hunter
+        if(!(S._huntersKilledThisRun>0||(S.hunters&&S.hunters.length>0))){
+          runCred+=ct.reward.bonusCred;repGain+=ct.reward.bonusRep;
+          bonusLog=` +${ct.reward.bonusCred}₵ no-witness bonus`;
+          ct.conditionMet=true;
+        }else{
+          bonusLog=' (witness condition failed — Hunter spawned)';
         }
       }
 
-      if(facKey){
+      // Government: route rep to govRep, not S.rep
+      if(ct.flavor==='GOVERNMENT'&&ct.govIndex!=null&&typeof addGovRep==='function'){
+        addGovRep(ct.govIndex, repGain);
+        const _gt=typeof govRepTier==='function'?govRepTier(ct.govIndex):{name:'Unknown'};
+        const _govName=typeof getGovernmentName==='function'?getGovernmentName(ct.govIndex):'Government';
+        addLog(`◈ ${ct.name}: +${repGain} gov rep (${getGovRep(ct.govIndex)} total — ${_gt.name})`,'lg');
+        // Record gov rep change for run summary
+        if(!S._repChanges) S._repChanges=[];
+        S._repChanges.push({fac:'gov',govIndex:ct.govIndex,govName:_govName,gain:repGain,subfac:ct.subfac,subfacName:ct.name,subGain:repGain,isGov:true});
+      } else if(facKey){
         const prevTier=repTierName(facKey);
         // Company/subfaction rep gain — stored in net state
         const sfKey=ct.subfac||ct.companyKey;

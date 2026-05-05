@@ -1118,13 +1118,33 @@ function _pqChainTitle(chain, firstStep){
   return titles[Math.floor(Math.random()*titles.length)];
 }
 
+
+function showEmailNotification(subject){
+  // Flash the email button with a bounce animation
+  const emailBtn = document.querySelector('[onclick="showEmailScreen()"]');
+  if(emailBtn){
+    emailBtn.style.animation='emailPulse 0.4s ease 3';
+    setTimeout(()=>{ emailBtn.style.animation=''; }, 1500);
+  }
+  // Show a small notification banner at the top of the home screen
+  const homeEl = document.getElementById('home-inner') || document.getElementById('home-screen');
+  if(!homeEl) return;
+  // Remove any existing notification
+  const existing = document.getElementById('email-notification-bar');
+  if(existing) existing.remove();
+  const bar = document.createElement('div');
+  bar.id = 'email-notification-bar';
+  bar.style.cssText = 'background:#0a1a2a;border:1px solid #40aaff;border-radius:4px;padding:6px 10px;margin-bottom:6px;font-family:Share Tech Mono,monospace;font-size:8px;color:#40aaff;cursor:pointer;display:flex;align-items:center;gap:8px';
+  bar.innerHTML = `<span style="font-size:12px">✉</span><span style="flex:1">New message: ${subject}</span><span style="font-size:7px;color:#2a5a7a">click to read</span>`;
+  bar.onclick = () => { bar.remove(); showEmailScreen(); };
+  homeEl.insertBefore(bar, homeEl.firstChild);
+  // Auto-dismiss after 10s
+  setTimeout(() => { if(bar.parentNode) bar.remove(); }, 10000);
+}
+
 function _pqToast(subject){
-  if(!S.running) return;
-  const toast=document.createElement('div');
-  toast.style.cssText='position:fixed;top:60px;right:16px;background:#0a1a2a;border:1px solid #40aaff;border-radius:4px;padding:8px 12px;font-family:Share Tech Mono,monospace;font-size:9px;color:#40aaff;z-index:9999;pointer-events:none;max-width:260px';
-  toast.innerHTML=`✉ ${subject}`;
-  document.body.appendChild(toast);
-  setTimeout(()=>toast.remove(),5000);
+  if(S.running) return; // don't show in-run — email badge handles it
+  showEmailNotification(subject);
 }
 
 function buildStepDesc(s){
@@ -1254,14 +1274,8 @@ function deliverQuestEmail(emailId, chainId){
   const emailBtn = document.querySelector('[onclick="showEmailScreen()"]');
   if(emailBtn){ emailBtn.style.outline='2px solid #40aaff'; setTimeout(()=>emailBtn.style.outline='',3000); }
   addLog(`◎ New message: ${tmpl.subject}`,'lp');
-  // Show in-net toast if currently running
-  if(S.running){
-    const toast = document.createElement('div');
-    toast.style.cssText='position:fixed;top:60px;right:16px;background:#0a1a2a;border:1px solid #40aaff;border-radius:4px;padding:8px 12px;font-family:Share Tech Mono,monospace;font-size:9px;color:#40aaff;z-index:9999;pointer-events:none;animation:achIn 0.3s ease;max-width:260px';
-    toast.innerHTML=`✉ NEW EMAIL: ${tmpl.subject}`;
-    document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(), 5000);
-  }
+  // Show home-screen notification (not in-run)
+  if(!S.running) showEmailNotification(tmpl.subject);
   if(typeof autoSave==='function') autoSave();
 }
 

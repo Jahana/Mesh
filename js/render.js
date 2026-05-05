@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.6.2 \u2014 Help & Changes";
+  const title="MESH v0.6.3 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -910,8 +910,12 @@ function renderGrid(){
   const iceReveal=attachEffect('ice_reveal')>0;
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const cell=S.grid[r][c];
+    // BLACKSITE hidden until adjacent; MIMIC shows disguise node type
+    const _pr=S.player?.r??0,_pc=S.player?.c??0;
+    const _isAdj=Math.abs(r-_pr)<=1&&Math.abs(c-_pc)<=1;
+    const _bsHidden=cell.nodeType==='BLACKSITE'&&!cell.visited&&!_isAdj;
     const mimicActive=cell.ice==='MIMIC'&&!cell.mimicRevealed&&cell.mimicDisguise;
-    const nt=mimicActive?(NODE_DEF[cell.mimicDisguise]||NODE_DEF.EMPTY):(NODE_DEF[cell.nodeType]||NODE_DEF.EMPTY);
+    const nt=_bsHidden?NODE_DEF.EMPTY:mimicActive?(NODE_DEF[cell.mimicDisguise]||NODE_DEF.EMPTY):(NODE_DEF[cell.nodeType]||NODE_DEF.EMPTY);
     const isPlayer=S.player.r===r&&S.player.c===c;
     const isPat=S.patrols.some(p=>p.r===r&&p.c===c);
     const isHunt=S.hunters.some(h=>h.r===r&&h.c===c);
@@ -973,9 +977,12 @@ function renderGrid(){
       if(!isGhost||vh?.ghostVisible)html+=`<div class="hun-tok" style="background:${htColor}">${isGhost?'G':'H'}</div>`;
     }
     // Action progress bar on current player cell
-    if(isPlayer){
-      const queued=S.actionQueue?.find(a=>a.cellR===r&&a.cellC===c);
-      if(queued){const pct=Math.round((1-queued.ticksLeft/queued.ticksTotal)*100);html+=`<div class="cell-action-bar"><div class="cell-action-fill" style="width:${pct}%"></div></div>`;}
+    // Action progress — show on player cell AND on any queued cell
+    const _aq=S.actionQueue?.find(a=>a.cellR===r&&a.cellC===c);
+    if(_aq){
+      const _pct=Math.round((1-_aq.ticksLeft/_aq.ticksTotal)*100);
+      const _barCol=_aq.type==='datastore'?'#ff6644':isPlayer?'#40aaff':'#2a6a4a';
+      html+=`<div class="cell-action-bar" style="background:#0d1a0d"><div class="cell-action-fill" style="width:${_pct}%;background:${_barCol}"></div></div>`;
     }
     // Coords
     html+=`<span style="position:absolute;bottom:1px;left:2px;font-size:5px;color:#1a3a1a">${r},${c}</span>`;
@@ -1751,7 +1758,31 @@ function renderProgressionScreen(){
         }
       }).filter(Boolean).join('') || '<div style="font-size:8px;color:#1a4a2a;padding:8px">No rep earned yet.</div>';
     })();
+    // Gov rep section
+    const govRepHtml=(()=>{
+      if(!S.govRep) return '';
+      const entries=Object.entries(S.govRep).filter(([,v])=>v>0).sort(([,a],[,b])=>b-a).slice(0,8);
+      if(!entries.length) return '';
+      return entries.map(([k,v])=>{
+        const idx=parseInt(k.replace('gov_',''));
+        if(isNaN(idx)) return '';
+        const name=typeof getGovernmentName==='function'?getGovernmentName(idx):'Gov '+idx;
+        const tier=typeof govRepTier==='function'?govRepTier(idx):{name:'Unknown',min:0};
+        const col=typeof getGovernment==='function'?getGovernment(idx).color:'#a0a040';
+        const nextMin={Unknown:100,Flagged:500,Vetted:1500,Cleared:4000,Integrated:Infinity}[tier.name]||Infinity;
+        const pct=nextMin===Infinity?100:Math.round(((v-tier.min)/(nextMin-tier.min))*100);
+        return '<div style="margin-bottom:6px">'
+          +'<div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px">'
+          +'<span style="color:'+col+';font-family:Share Tech Mono,monospace;font-size:7px">'+name+'</span>'
+          +'<span style="color:'+col+'">'+tier.name+'</span>'
+          +'<span style="color:#3a6a3a">'+v+(nextMin<Infinity?' / '+nextMin:'')+'</span>'
+          +'</div>'
+          +'<div style="height:3px;background:#1a2a1a;border-radius:2px"><div style="height:100%;width:'+Math.min(100,pct)+'%;background:'+col+'"></div></div>'
+          +'</div>';
+      }).join('');
+    })();
     repEl2.innerHTML='<div class="ptitle">Faction Reputation</div>'+repHtml
+      +(govRepHtml?'<div class="ptitle" style="margin-top:10px">Government Reputation</div>'+govRepHtml:'')
       +(sfHtml?'<div class="ptitle" style="margin-top:10px">Sub-Faction Rep</div>'+sfHtml:'');
   }
 }
@@ -1792,6 +1823,22 @@ function renderPrestigeScreen(){
       const col={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060'}[f];
       return row(f.charAt(0).toUpperCase()+f.slice(1),`${r} <span style="font-size:7px;color:${col}">${tier}</span>`,col);
     }).join('')}
+    ${(()=>{
+      if(typeof S.govRep==='undefined'||!S.govRep) return '';
+      const govEntries=Object.entries(S.govRep).filter(([,v])=>v>0);
+      if(!govEntries.length) return '';
+      const govHtml=govEntries.map(([k,v])=>{
+        const idx=parseInt(k.replace('gov_',''));
+        if(isNaN(idx)) return '';
+        const name=typeof getGovernmentName==='function'?getGovernmentName(idx):'Government '+idx;
+        const tier=typeof govRepTier==='function'?govRepTier(idx).name:'Unknown';
+        const col=typeof getGovernment==='function'?getGovernment(idx).color:'#a0a040';
+        return `<div style="display:flex;align-items:baseline;padding:2px 0;border-bottom:1px solid #0d1a0d">
+          <span style="flex:1;font-size:7px;color:#3a6a3a">${name}</span>
+          <span style="font-size:9px;color:${col}">${v} <span style="font-size:6px">${tier}</span></span></div>`;
+      }).join('');
+      return `<div class="ptitle" style="margin-top:8px">Government Standing</div>${govHtml}`;
+    })()}
     <div class="ptitle" style="margin-top:8px">Recent Lore</div>
     ${(S.loreLog||[]).slice(0,3).map(e=>`<div style="padding:4px 8px;border-left:2px solid #1a4a2a;margin:2px 0">
       <div style="font-size:7px;color:#2a6a3a;font-family:'Orbitron',monospace">${e.title}</div>
@@ -1951,16 +1998,25 @@ function showRunSummary(){
   if(s.repChanges&&s.repChanges.length>0){
     html+=`<div class="sum-section"><div class="sum-label">Reputation</div>`;
     s.repChanges.forEach(rc=>{
-      const sfCol='#40c060';
-      const sfDisplayName=rc.subfacName||rc.subfac||'';
-      const parentTier=rc.fac?repTierName(rc.fac):'Unknown';
-      const newParentRep=rc.fac?S.rep[rc.fac]||0:0;
-      if(sfDisplayName){
-        html+=`<div class="sum-row"><span class="sum-key" style="color:${sfCol}">${sfDisplayName}</span><span class="sum-val good">+${rc.subGain||rc.gain}</span></div>`;
-      }
-      html+=`<div class="sum-row"><span class="sum-key">${(rc.fac||'').toUpperCase()} <span style="color:#2a5a2a;font-size:7px">(${parentTier} · ${newParentRep})</span></span><span class="sum-val good">+${rc.gain}</span></div>`;
-      if(rc.rivalLoss&&rc.rival){
-        html+=`<div class="sum-row"><span class="sum-key" style="color:#c04040">${rc.rival.toUpperCase()} rival</span><span class="sum-val bad">-${rc.rivalLoss}</span></div>`;
+      if(rc.isGov){
+        // Government rep entry
+        const _gCol=typeof getGovernment==='function'?getGovernment(rc.govIndex).color:'#a0a040';
+        const _gTier=typeof govRepTier==='function'?govRepTier(rc.govIndex).name:'Unknown';
+        const _gTotal=typeof getGovRep==='function'?getGovRep(rc.govIndex):0;
+        html+=`<div class="sum-row"><span class="sum-key" style="color:${_gCol}">${rc.govName||'Government'}</span><span class="sum-val good">+${rc.gain}</span></div>`;
+        html+=`<div class="sum-row"><span class="sum-key">GOV <span style="color:#2a5a2a;font-size:7px">(${_gTier} · ${_gTotal})</span></span><span class="sum-val" style="color:${_gCol}">+${rc.gain} gov rep</span></div>`;
+      } else {
+        const sfCol='#40c060';
+        const sfDisplayName=rc.subfacName||rc.subfac||'';
+        const parentTier=rc.fac?repTierName(rc.fac):'Unknown';
+        const newParentRep=rc.fac?S.rep[rc.fac]||0:0;
+        if(sfDisplayName){
+          html+=`<div class="sum-row"><span class="sum-key" style="color:${sfCol}">${sfDisplayName}</span><span class="sum-val good">+${rc.subGain||rc.gain}</span></div>`;
+        }
+        html+=`<div class="sum-row"><span class="sum-key">${(rc.fac||'').toUpperCase()} <span style="color:#2a5a2a;font-size:7px">(${parentTier} · ${newParentRep})</span></span><span class="sum-val good">+${rc.gain}</span></div>`;
+        if(rc.rivalLoss&&rc.rival){
+          html+=`<div class="sum-row"><span class="sum-key" style="color:#c04040">${rc.rival.toUpperCase()} rival</span><span class="sum-val bad">-${rc.rivalLoss}</span></div>`;
+        }
       }
     });
     html+=`</div>`;

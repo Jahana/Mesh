@@ -172,8 +172,14 @@ function resolveCombatRound(){
       if(S.alertPressure>=PRESSURE_MAX){spawnHunter();addLog('  Omega: Hunter spawned!','lb');}
       break;
     case 'MIMIC':
-      // Reveal true nature on retaliation
-      if(!c._mimicRevealed){c._mimicRevealed=true;addLog('  MIMIC revealed!','lw');}
+      // Reveal true nature on retaliation — sync to cell for render
+      if(!c._mimicRevealed){
+        c._mimicRevealed=true;
+        const _mc=S.grid?.[c.cellR]?.[c.cellC];
+        if(_mc){ _mc.mimicRevealed=true; }
+        addLog('  MIMIC revealed — true ICE exposed!','lw');
+        if(typeof renderGrid==='function') renderGrid();
+      }
       raiseAlert(1);
       break;
     case 'ARCHITECT':
