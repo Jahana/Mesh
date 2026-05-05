@@ -14,7 +14,8 @@ let _lastRunSummary=null;
 function moveTicks(){
   const deckBonus=DECK_MOVE_BONUS[S.hardware]||0;
   const tarPit=(S._tarPitStacks||0)*4;
-  return Math.max(4, BASE_MOVE_TICKS - deckBonus + tarPit);
+  const reflexBonus=typeof charTickReduction==='function'?charTickReduction():0;
+  return Math.max(4, BASE_MOVE_TICKS - deckBonus - reflexBonus + tarPit);
 }
 
 function combatTicks(){
@@ -132,6 +133,162 @@ function autoSelectContracts(){
   showRunSetup(S.active.length>0);
 }
 
+
+// ── NET AUTO-TRAVERSAL ────────────────────────────────────────────────────
+// When autorun is enabled and we're in a net, auto-pick the next node:
+// 60% chance: move towards FF (maximize col+row hex progress)
+// 40% chance: random accessible adjacent node
+
+function autoPickNextNode(){
+  if(!S.mesh?.currentNet) return null;
+  const ns = typeof currentNetState==='function' ? currentNetState() : null;
+  if(!ns || !ns.layout) return null;
+
+  // Find accessible unvisited nodes
+  const currentAddr = S.mesh.lastNodeAddr || '00';
+  const accessible = [];
+  for(let row=0;row<16;row++){
+    for(let col=0;col<16;col++){
+      const addr = typeof nodeAddr==='function' ? nodeAddr(col,row) : ((col*16+row)&0xFF).toString(16).toUpperCase().padStart(2,'0');
+      if(ns.completedNodes.includes(addr)) continue; // already done
+      if(typeof isNodeAccessible==='function' && !isNodeAccessible(addr,ns)) continue;
+      accessible.push({addr,col,row});
+    }
+  }
+  if(!accessible.length) return null; // all done or blocked
+
+  // Always check if FF itself is accessible — if so, always go there
+  const ffNode = accessible.find(n => n.addr === 'FF');
+  if(ffNode) return 'FF';
+
+  // 60%: pick node that maximises progress toward FF (highest col+row)
+  if(Math.random() < 0.6){
+    accessible.sort((a,b)=>(b.col+b.row)-(a.col+a.row));
+    return accessible[0].addr;
+  }
+  // 40%: random accessible node
+  return accessible[Math.floor(Math.random()*accessible.length)].addr;
+}
+
+function autoApplyLoadout(contract){
+  // Apply suggested loadout for the auto-picked contract
+  if(!contract) return;
+  const loadout = typeof computeSuggestedLoadout==='function' ? computeSuggestedLoadout(contract) : null;
+  if(!loadout?.programs?.length) return;
+  const toEject=[...(S.installed||[])];
+  toEject.forEach(id=>{if(typeof ejectProg==='function')ejectProg(id);});
+  for(const p of loadout.programs){
+    const it=S.inventory.find(x=>x.instId===p.instId||x.defId===p.defId);
+    if(!it)continue;
+    const d=typeof pdef==='function'?pdef(it.defId):null;
+    if(!d)continue;
+    if((typeof ramUsed==='function'?ramUsed():0)+(d.mem||0)>(typeof ramMax==='function'?ramMax():8))break;
+    if(typeof instProg==='function')instProg(it.instId);
+  }
+}
+
+function launchAutoNetRun(){
+  // Called from countdown when in a net and autorun is on
+  if(!S.mesh?.currentNet || !_autoRunEnabled) return false;
+  const addr = autoPickNextNode();
+  if(!addr){
+    addLog('AUTO: All accessible nodes complete — jack out or travel to new net','li');
+    return false;
+  }
+  // Generate contract for selected node
+  const ns = typeof currentNetState==='function' ? currentNetState() : null;
+  const {col,row} = typeof addrToColRow==='function' ? addrToColRow(addr) : {col:parseInt(addr[0],16),row:parseInt(addr[1],16)};
+  const node = ns?.layout?.[row]?.[col];
+  const contract = typeof genNodeContract==='function' ? genNodeContract(addr, ns, node) : null;
+  if(contract){
+    S.active = [contract];
+    autoApplyLoadout(contract);
+    addLog(`AUTO: Entering node ${addr} — ${node?.nodeType||'?'}`,'li');
+  }
+  // Enter the node
+  if(typeof enterNode==='function') enterNode(addr);
+  return true;
+}
+
+
+function autoUpliftTravel(){
+  if(!S.mesh?.traversalUnlocked || !S.mesh?.currentNet) return;
+  const cx = S.mesh.currentNet.x, cy = S.mesh.currentNet.y;
+  const curDist = typeof meshDistance==='function' ? meshDistance(cx,cy) : 0;
+  const visited = S.mesh.visitedNets || [];
+
+  function isCleared(x,y){
+    const ns = visited.find(v=>v.x===x&&v.y===y);
+    return !!(ns?.completedNodes?.includes('FF'));
+  }
+
+  // BFS outward from current position to find nearest uncleared net
+  // Prefer nets deeper in mesh (higher dist from origin)
+  const seen = new Set();
+  const queue = [{x:cx, y:cy, dist:0}];
+  seen.add(cx+':'+cy);
+  let best = null;
+
+  while(queue.length > 0){
+    // Score candidates: 60% deeper, 30% lateral, 10% toward 0:0
+    // Use a random roll per-candidate so each traversal has natural variation
+    function directionScore(n){
+      const nDist = typeof meshDistance==='function' ? meshDistance(n.x,n.y) : 0;
+      const roll = Math.random();
+      if(roll < 0.60) return -nDist;      // 60%: prefer deeper (higher dist = lower score)
+      else if(roll < 0.90) return 0;      // 30%: lateral (neutral)
+      else return nDist;                  // 10%: toward origin (lower dist = lower score)
+    }
+    queue.sort((a,b)=>{
+      if(a.dist!==b.dist) return a.dist-b.dist; // BFS hop distance first
+      return directionScore(a)-directionScore(b);
+    });
+    const cur = queue.shift();
+
+    // Skip current net on first iteration
+    if(cur.x===cx && cur.y===cy){
+      // Enqueue cardinal neighbors
+      [[0,-1],[0,1],[-1,0],[1,0]].forEach(([dx,dy])=>{
+        const nx=cur.x+dx, ny=cur.y+dy;
+        if(nx<0||ny<0) return;
+        const k=nx+':'+ny;
+        if(!seen.has(k)){ seen.add(k); queue.push({x:nx,y:ny,dist:cur.dist+1}); }
+      });
+      continue;
+    }
+
+    if(!isCleared(cur.x, cur.y)){
+      best = cur;
+      break; // found nearest uncleared
+    }
+
+    // Cleared — keep searching but limit BFS depth to 8 hops
+    if(cur.dist < 8){
+      [[0,-1],[0,1],[-1,0],[1,0]].forEach(([dx,dy])=>{
+        const nx=cur.x+dx, ny=cur.y+dy;
+        if(nx<0||ny<0) return;
+        const k=nx+':'+ny;
+        if(!seen.has(k)){ seen.add(k); queue.push({x:nx,y:ny,dist:cur.dist+1}); }
+      });
+    }
+  }
+
+  if(!best){
+    addLog('AUTO: No uncleared nets within range — jack out and explore','li');
+    return;
+  }
+
+  const nk = typeof netKey==='function' ? netKey(best.x,best.y) : '?';
+  const bestDist = typeof meshDistance==='function' ? meshDistance(best.x,best.y).toFixed(1) : '?';
+  const deeper = meshDistance(best.x,best.y) > curDist;
+  addLog(`AUTO: Uplifting to net ${nk} (dist ${bestDist}${deeper?' — going deeper':''})…`,'lp');
+  S._pendingUpliftTravel = false;
+
+  // Cleared nets do not auto-enter — just show the net map
+  // (travelToNet auto-enters only if FF not cleared, which is guaranteed here)
+  if(typeof travelToNet==='function') travelToNet(best.x, best.y);
+}
+
 function toggleAutoRun(){
   _autoRunEnabled=!_autoRunEnabled;
   try{localStorage.setItem('mesh_autorun',_autoRunEnabled?'1':'0');}catch(e){}
@@ -141,25 +298,40 @@ function toggleAutoRun(){
   addLog(`Auto-run ${_autoRunEnabled?'enabled':'disabled'}`,'li');
 }
 function loadAutoRunPref(){
-  // Autorun disabled by default — only load if player has unlocked it
-  try{const v=localStorage.getItem('mesh_autorun_unlocked');
-    if(v==='1'){const pref=localStorage.getItem('mesh_autorun');_autoRunEnabled=pref!=='0';}
-    else _autoRunEnabled=false;
-  }catch(e){}
-  const btn=document.getElementById('autorun-toggle-btn');
-  if(btn){btn.textContent=_autoRunEnabled?'AUTO ●':'AUTO ○';btn.style.color=_autoRunEnabled?'#40ff80':'#4a4a4a';}
+  // Unlocked if: localStorage flag set OR S.mesh.traversalUnlocked is true (from save)
+  const lsUnlocked = (()=>{ try{ return localStorage.getItem('mesh_autorun_unlocked')==='1'; }catch(e){return false;} })();
+  const saveUnlocked = !!(S.mesh?.traversalUnlocked);
+  const unlocked = lsUnlocked || saveUnlocked;
+
+  if(unlocked){
+    // Ensure localStorage is in sync
+    try{ localStorage.setItem('mesh_autorun_unlocked','1'); }catch(e){}
+    const pref = (()=>{ try{ return localStorage.getItem('mesh_autorun'); }catch(e){return null;} })();
+    _autoRunEnabled = pref !== '0'; // default on if unlocked
+  } else {
+    _autoRunEnabled = false;
+  }
+
+  const btn = document.getElementById('autorun-toggle-btn');
+  if(btn){
+    btn.style.display = unlocked ? '' : 'none';
+    btn.textContent = _autoRunEnabled ? 'AUTO ●' : 'AUTO ○';
+    btn.style.color  = _autoRunEnabled ? '#40ff80' : '#4a4a4a';
+  }
 }
 
 function startAutoRunCountdown(){
   // Clear any existing timer first to avoid double-firing
   if(_autoRunTimer){clearInterval(_autoRunTimer);_autoRunTimer=null;}
+  const inNet = !!S.mesh?.currentNet;
   if(!_autoRunEnabled){
-    // Auto-run off — just show READY state
-    const cdEl=document.getElementById('autorun-countdown');
-    const mlBtn=document.getElementById('manual-launch-btn');
-    if(cdEl){cdEl.style.display='';cdEl.textContent='READY';}
-    if(mlBtn)mlBtn.style.display='';
-    autoSelectContracts();
+    if(!inNet){
+      const cdEl=document.getElementById('autorun-countdown');
+      const mlBtn=document.getElementById('manual-launch-btn');
+      if(cdEl){cdEl.style.display='';cdEl.textContent='READY';}
+      if(mlBtn)mlBtn.style.display='';
+      autoSelectContracts();
+    }
     return;
   }
   _autoRunCountdown=5;
@@ -167,7 +339,7 @@ function startAutoRunCountdown(){
   const mlBtn=document.getElementById('manual-launch-btn');
   if(cdEl)cdEl.style.display='';
   if(mlBtn)mlBtn.style.display='';
-  autoSelectContracts();
+  if(!inNet)autoSelectContracts();
   _autoRunTimer=setInterval(()=>{
     _autoRunCountdown--;
     if(cdEl)cdEl.textContent=`AUTO-RUN IN ${_autoRunCountdown}s`;
@@ -181,8 +353,19 @@ function startAutoRunCountdown(){
       if(cdEl)cdEl.style.display='none';
       if(mlBtn)mlBtn.style.display='none';
       hideRunSummary();
-      if(_autoRunEnabled&&S.active.length>0){
+      if(_autoRunEnabled){
+        // Pending uplift travel (FF just completed)
+        if(S._pendingUpliftTravel){
+          S._pendingUpliftTravel=false;
+          autoUpliftTravel();
+          return;
+        }
         autoMaintenance();
+        // Net mode: auto-pick and enter next node
+        if(S.mesh?.currentNet){
+          launchAutoNetRun();
+          return;
+        }
         if(typeof pendingAutoMaint==='function'&&pendingAutoMaint()){
           // Defrag in progress — show prominent delay indicator
           const cdEl2=document.getElementById('autorun-countdown');
@@ -256,7 +439,7 @@ function updateLockedBanner(){
 }
 
 const mkState=()=>({
-  cred:500,level:1,xp:0,prestige:0,
+  cred:500,level:1,xp:0,xpPool:0,prestige:0,
   rep:{corp:0,crim:0,anarch:0},
   hardware:'haas_common',ownedHW:['haas_common'], // Hexfield Common starter deck
   inventory:[],installed:[],
@@ -283,6 +466,7 @@ const mkState=()=>({
   _cpuVisits:0, _actionTickMod:0, _overloadActive:false,
   _intelBought:false, _mfrPerk:{},
   achievements:{},
+  charStats:{neural_buffer:0,reflex:0,stealth:0,integrity:0,trace_resist:0,intrusion:0},
   mesh: null,   // initialized on first jack-in or new game
   world: null,  // real world state
   inTutorial: false,

@@ -277,6 +277,10 @@ function doPrestige(){
 // XP / LEVEL
 function gainXP(amount){
   S.xp+=amount;
+  if(!S.xpPool) S.xpPool=0;
+  S.xpPool+=amount;
+  // Update char tab if it's active
+  if(document.getElementById('tab-char-content')?.classList.contains('active')&&typeof renderCharacterTab==='function') renderCharacterTab(); // spendable pool accumulates separately, never reduced by levelling
   while(S.xp>=xpToLvl(S.level)){
     S.xp-=xpToLvl(S.level);S.level++;addLog(`▲ LEVEL UP → ${S.level}`,'li');
     if(typeof checkProgressionAchievements==='function')checkProgressionAchievements();

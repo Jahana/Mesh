@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.5 \u2014 Help & Changes";
+  const title="MESH v0.5.4 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -386,6 +386,8 @@ function showTab(name){
   // Show mesh tab if traversal unlocked
   const meshTabEl=document.getElementById('tab-mesh');
   if(meshTabEl&&S.mesh?.traversalUnlocked) meshTabEl.style.display='';
+  const netTabEl=document.getElementById('tab-net');
+  if(netTabEl) netTabEl.style.display=S.mesh?.currentNet?'':'';
   // Always refresh context nav when switching tabs
   renderContextNav();
   // Update craft tab availability indicator
@@ -396,12 +398,15 @@ function showTab(name){
     craftBtn.style.opacity=locked?'0.4':'';
     craftBtn.title=locked?`Crafting unlocks at mesh distance 4 (you: ${meshDist.toFixed(1)})`:'';
   }
-  const names=['run','mesh','deck','market','craft','inv','progression','prestige','save'];
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
+  // Activate tab by ID match — not positional (avoids mismatch when tabs are hidden)
+  document.querySelectorAll('.tab').forEach(t=>{
+    const tabName=t.id.replace('tab-','');
+    t.classList.toggle('active', tabName===name);
+  });
   document.querySelectorAll('.rpanel').forEach(p=>p.classList.remove('active'));
   const panel=document.getElementById('tab-'+name+'-content');
   if(panel)panel.classList.add('active');
-  if(name==='market')renderMarket();
+  if(name==='market'){ if(S.mesh?.currentNet) renderNetMarket(); else renderMarket(); }
   if(name==='deck')renderDeck();
   if(name==='inv')renderInventory();
   if(name==='craft'){
@@ -423,6 +428,8 @@ function showTab(name){
   if(name==='save')renderSaveScreen();
   if(name==='ops')renderOps();
   if(name==='mesh')renderMeshView();
+  if(name==='char')renderCharacterTab();
+  if(name==='net')renderNetTab();
   if(name==='ach')renderAchievements();
   if(name==='stats')renderStats();
 }
@@ -496,11 +503,328 @@ function renderContextNav(){
   navEl.innerHTML = html;
 }
 
+
+function renderCharacterTab(){
+  const el = document.getElementById('tab-char-content');
+  if(!el) return;
+
+  const meshDist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  const xp = S.xpPool || 0;
+  const level = S.level || 1;
+
+  let html = `<div style="padding:6px;font-family:'Share Tech Mono',monospace">`;
+
+  // XP pool display
+  html += `<div style="background:#080d10;border:1px solid #1a3a2a;border-radius:4px;padding:8px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+      <span style="font-family:'Orbitron',monospace;font-size:9px;color:#40c060;letter-spacing:1px">WEAVER LVL ${level}</span>
+      <span style="font-size:8px;color:#40aaff">${xp.toLocaleString()} XP available</span>
+    </div>
+    <div style="font-size:7px;color:#1a4a2a">Spend XP to upgrade stats. Deeper mesh requires stronger Weavers.</div>
+  </div>`;
+
+  // Stat cards
+  html += `<div style="display:flex;flex-direction:column;gap:6px">`;
+
+  CHAR_STAT_KEYS.forEach(statId => {
+    const def = CHAR_STATS[statId];
+    const lvl = S.charStats?.[statId] || 0;
+    const nextCost = statUpgradeCost(statId, lvl);
+    const canAfford = xp >= nextCost;
+    const effect = def.displayEffect(lvl);
+    const nextEffect = def.displayEffect(lvl + 1);
+
+    // Deck bonus for this stat (where applicable)
+    let deckBonus = '';
+    if(statId === 'neural_buffer') deckBonus = `+${(hwdef()?.ram||8)+attachEffect('ram')} deck`;
+    if(statId === 'integrity')     deckBonus = `+${(hwdef()?.integrity||10)} deck`;
+
+    // Bar showing progression (soft cap visual at 20)
+    const barPct = Math.min(100, (lvl / 20) * 100);
+    const barColor = lvl >= 15 ? '#ffaa20' : lvl >= 8 ? '#40aaff' : def.color;
+
+    html += `<div style="background:#080d10;border:1px solid ${def.color}33;border-radius:4px;padding:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:18px;color:${def.color};width:22px;text-align:center">${def.icon}</span>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span style="font-size:9px;color:${def.color};font-family:'Orbitron',monospace">${def.name}</span>
+            <span style="font-size:8px;color:#40aaff">Lvl ${lvl}</span>
+          </div>
+          <div style="height:3px;background:#1a2a1a;border-radius:2px;margin:3px 0">
+            <div style="height:100%;width:${barPct}%;background:${barColor};border-radius:2px;transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:7px;color:#2a5a2a;margin-bottom:4px">${def.desc}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:7px;color:#3a7a3a">
+          ${lvl > 0 ? `Current: <span style="color:${def.color}">${effect}</span>` : '<span style="color:#1a4a2a">Not trained</span>'}
+          ${deckBonus ? ` <span style="color:#1a4a2a">(${deckBonus})</span>` : ''}
+        </div>
+        <button onclick="upgradeCharStat('${statId}')"
+          style="font-size:7px;padding:3px 8px;background:${canAfford?'#0a1a0e':'#0a0d0a'};
+            border:1px solid ${canAfford?def.color:'#1a2a1a'};color:${canAfford?def.color:'#1a3a1a'};
+            border-radius:2px;cursor:${canAfford?'pointer':'default'};font-family:'Share Tech Mono',monospace;
+            transition:all 0.15s"
+          ${canAfford?`onmouseenter="this.style.background='#0f2a18'" onmouseleave="this.style.background='#0a1a0e'"`:''}>
+          ▲ ${nextCost} XP → ${nextEffect}
+        </button>
+      </div>
+    </div>`;
+  });
+
+  html += `</div>`;
+
+  // Mesh scaling note
+  if(meshDist > 0){
+    const scale = (1 + meshDist * 0.05).toFixed(1);
+    html += `<div style="margin-top:10px;padding:6px 8px;background:#100808;border:1px solid #3a1a1a;border-radius:3px;font-size:7px;color:#6a3a2a">
+      ⚡ Mesh dist ${meshDist.toFixed(1)}: ICE STR ×${scale}, alert rate ×${scale}. Stats counter this scaling.
+    </div>`;
+  }
+
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function upgradeCharStat(statId){
+  if(!CHAR_STATS[statId]) return;
+  const lvl = S.charStats?.[statId] || 0;
+  const cost = statUpgradeCost(statId, lvl);
+  if(!S.xpPool) S.xpPool=0;
+  if(S.xpPool < cost){ addLog(`Need ${cost} XP pool to upgrade ${CHAR_STATS[statId].name}`,'lw'); return; }
+  S.xpPool -= cost;
+  S._totalXpSpent=(S._totalXpSpent||0)+cost;
+  if(!S.charStats) S.charStats = {};
+  S.charStats[statId] = lvl + 1;
+  addLog(`◈ ${CHAR_STATS[statId].name} → Lvl ${lvl+1} (${CHAR_STATS[statId].displayEffect(lvl+1)})`,'lp');
+  renderCharacterTab();
+  renderTopBar();
+  if(typeof autoSave==='function') autoSave();
+}
+
+function renderNetTab(){
+  const ns = typeof currentNetState==='function' ? currentNetState() : null;
+  const labelEl = document.getElementById('net-tab-label');
+  const gridEl  = document.getElementById('net-tab-grid');
+  if(!ns || !gridEl) return;
+
+  const dist = typeof meshDistance==='function' ? meshDistance(ns.x, ns.y) : 0;
+  const glitch = typeof meshGlitchLevel==='function' ? meshGlitchLevel(dist) : 0;
+  if(labelEl){
+    const nk = typeof netKey==='function' ? netKey(ns.x, ns.y) : '?';
+    labelEl.textContent = `NET ${nk}  ·  ${ns.completedNodes.length}/256 nodes${glitch>0?' · GLITCH '+glitch:''}`;
+  }
+
+  // Reuse renderNetView logic but target net-tab-grid instead of #grid
+  const factionKeys = Object.keys(ns.companies||{});
+  const facColors = {corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060',gov:'#a0a040',ai:'#ff4080'};
+  const netSeed = (ns.x * 2654435761 ^ ns.y * 2246822519) >>> 0;
+  function nodeFaction(col, row){
+    if(!factionKeys.length) return 'neutral';
+    const s = ((netSeed ^ (col * 7919 + row * 1000003)) >>> 0) % factionKeys.length;
+    return factionKeys[s];
+  }
+  const currentAddr = S.mesh?.lastNodeAddr || '00';
+  const NODE_ICON = '⬡';
+  const layout = ns.layout || [];
+
+  gridEl.style.display = 'grid';
+  const CELL = 26; // smaller cells to fit right panel
+  gridEl.style.display = 'grid';
+  gridEl.style.gridTemplateColumns = `repeat(16, ${CELL}px)`;
+  gridEl.style.gap = '1px';
+  gridEl.style.padding = '2px';
+  gridEl.innerHTML = '';
+
+  for(let row = 0; row < 16; row++){
+    for(let col = 0; col < 16; col++){
+      const node = layout[row]?.[col] || {};
+      const addr = typeof nodeAddr==='function' ? nodeAddr(col, row) : ((col*16+row)&0xFF).toString(16).toUpperCase().padStart(2,'0');
+      const done = ns.completedNodes.includes(addr);
+      const fac  = nodeFaction(col, row);
+      const col_ = facColors[fac] || '#60a060';
+      const hasIce = !!node.ice;
+      const isPlayer = addr === currentAddr;
+      const accessible = typeof isNodeAccessible==='function' ? isNodeAccessible(addr, ns) : true;
+
+      const div = document.createElement('div');
+      const border = isPlayer ? '#40ff80' : done ? col_ : '#0d1a0d';
+      const bg     = isPlayer ? '#0a2010' : done ? col_+'22' : '#060d10';
+      const glow   = isPlayer ? '0 0 6px #40ff8088' : done ? '0 0 3px '+col_+'66' : 'none';
+      div.style.cssText = `width:${CELL}px;height:${CELL}px;border-radius:2px;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:0;
+        border:1px solid ${border};background:${bg};box-shadow:${glow};
+        opacity:${accessible?1:0.25};cursor:${accessible?'pointer':'default'};`;
+      div.innerHTML = `<span style="font-size:9px;color:${isPlayer?'#40ff80':done?col_:col_};opacity:${isPlayer||done?1:0.5};text-shadow:${isPlayer?'0 0 6px #40ff80':'none'}">${isPlayer?'◈':done?'✓':NODE_ICON}</span>
+        <span style="font-size:4px;color:${isPlayer?'#40ff80':done?col_+'aa':'#1a3a1a'}">${addr}</span>`;
+      if(accessible){
+        div.onmouseenter = () => { div.style.borderColor=col_; div.style.background=done?col_+'33':col_+'11'; };
+        div.onmouseleave = () => { div.style.borderColor=border; div.style.background=bg; };
+        div.onclick = () => { if(typeof selectNetNode==='function') selectNetNode(addr, node, fac); };
+      }
+      gridEl.appendChild(div);
+    }
+  }
+}
+
+
+function renderNetMarket(){
+  const el = document.getElementById('tab-market-content');
+  if(!el) return;
+
+  const ns = typeof currentNetState==='function' ? currentNetState() : null;
+  if(!ns || !S.mesh?.currentNet){
+    // Not in a net — show regular market
+    renderMarket();
+    return;
+  }
+
+  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  const companies = Object.values(ns.companies||{}).flat();
+  if(!companies.length){ renderMarket(); return; }
+
+  let html = `<div style="padding:4px;font-family:'Share Tech Mono',monospace">`;
+  html += `<div style="font-size:7px;color:#1a4a2a;margin-bottom:8px">
+    Net market · dist ${dist.toFixed(1)} · prices ×${(1+dist*0.08).toFixed(2)} · stat tier +${Math.floor(dist/8)}
+    <span style="color:#1a3a1a;margin-left:8px">HOME market available at base</span>
+  </div>`;
+
+  const facColors={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060',gov:'#a0a040'};
+
+  companies.forEach(co => {
+    const market = typeof genCompanyMarket==='function' ? genCompanyMarket(co, dist) : null;
+    if(!market) return;
+    const col = facColors[co.faction]||'#60a060';
+    // Rep gate: use ns.rep for this company
+    const coRep = ns.rep?.[co.key] || 0;
+    const parentRep = S.rep?.[co.faction] || 0;
+    const effectiveRep = Math.max(coRep, parentRep);
+
+    html += `<div style="border:1px solid ${col}33;border-radius:4px;padding:8px;margin-bottom:8px;background:#080d10">
+      <div style="font-size:8px;color:${col};margin-bottom:2px;font-family:'Orbitron',monospace">${co.name}</div>
+      <div style="font-size:6px;color:#1a4a2a;margin-bottom:6px">${co.faction.toUpperCase()} · ${coRep} rep local · ${parentRep} global</div>`;
+
+    // Programs
+    market.programs.forEach(defId => {
+      const d = typeof pdef==='function' ? pdef(defId) : null;
+      if(!d) return;
+      const baseCost = d.cost||0;
+      const scaledCost = Math.floor(baseCost * market.priceScale);
+      const tierBonus = market.meshTier;
+      const owned = (S.inventory||[]).some(it=>it.defId===defId);
+      const canAfford = S.cred >= scaledCost;
+      const repReq = d.faction==='corp'?100:d.faction==='crim'?100:d.faction==='anarch'?100:0;
+      const repOk = effectiveRep >= repReq || repReq === 0;
+
+      html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #0d1a0d">
+        <span style="font-size:14px;color:#40c060;width:18px;text-align:center">${d.icon||'◈'}</span>
+        <div style="flex:1">
+          <div style="font-size:8px;color:${owned?'#2a5a2a':'#3a7a3a'}">${d.name}${tierBonus>0?` <span style="color:#ffdd40;font-size:6px">+${tierBonus} tier</span>`:''}${owned?' <span style="font-size:6px;color:#2a4a2a">[owned]</span>':''}</div>
+          <div style="font-size:6px;color:#1a4a2a">${d.desc||''}</div>
+        </div>
+        <button onclick="buyNetItem('prog','${defId}',${scaledCost},'${co.key}')"
+          style="font-size:7px;padding:2px 6px;background:${!owned&&canAfford&&repOk?'#0a1a0e':'#0a0d0a'};
+            border:1px solid ${!owned&&canAfford&&repOk?'#2a6a3a':'#1a2a1a'};
+            color:${!owned&&canAfford&&repOk?'#40c060':'#1a4a2a'};border-radius:2px;
+            cursor:${!owned&&canAfford&&repOk?'pointer':'default'};white-space:nowrap">
+          ${scaledCost}₵${!repOk?` (${repReq} rep)`:''}
+        </button>
+      </div>`;
+    });
+
+    // Attachments
+    market.attachments.forEach(attachId => {
+      const a = typeof ATTACHMENTS!=='undefined' ? ATTACHMENTS[attachId] : null;
+      if(!a) return;
+      const baseCost = a.cost||0;
+      const scaledCost = Math.floor(baseCost * market.priceScale);
+      const scaledPower = (a.power||0) + market.meshTier;
+      const installed = (S.attachments||[]).some(at=>at.attachId===attachId);
+      const canAfford = S.cred >= scaledCost;
+
+      html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #0d1a0d">
+        <span style="font-size:14px;color:#40aaff;width:18px;text-align:center">${a.icon||'◫'}</span>
+        <div style="flex:1">
+          <div style="font-size:8px;color:${installed?'#2a4a6a':'#3a6a9a'}">${a.name}${market.meshTier>0?` <span style="color:#ffdd40;font-size:6px">+${market.meshTier} power</span>`:''}${installed?' <span style="font-size:6px;color:#1a3a5a">[installed]</span>':''}</div>
+          <div style="font-size:6px;color:#1a3a5a">${a.desc||''} → effective power: ${scaledPower}</div>
+        </div>
+        <button onclick="buyNetItem('attach','${attachId}',${scaledCost},'${co.key}')"
+          style="font-size:7px;padding:2px 6px;background:${!installed&&canAfford?'#0a0e1a':'#0a0d0a'};
+            border:1px solid ${!installed&&canAfford?'#2a3a6a':'#1a2a1a'};
+            color:${!installed&&canAfford?'#40aaff':'#1a3a5a'};border-radius:2px;
+            cursor:${!installed&&canAfford?'pointer':'default'};white-space:nowrap">
+          ${scaledCost}₵
+        </button>
+      </div>`;
+    });
+
+    // Decks — look up from HARDWARE catalog by mfr + rarity scaled to distance
+    market.decks.forEach(mfrId => {
+      const mfr = typeof MANUFACTURERS!=='undefined' ? MANUFACTURERS[mfrId] : null;
+      if(!mfr) return;
+      const rarities = ['common','uncommon','rare','legendary','mythic'];
+      const rarityIdx = Math.min(3, Math.floor(dist/16)); // common→legendary over 48 dist (no mythic in market)
+      const rarity = rarities[rarityIdx];
+      const deck = typeof HARDWARE!=='undefined' ? HARDWARE.find(h=>h.mfr===mfrId&&h.rarity===rarity) : null;
+      if(!deck) return;
+      const scaledCost = Math.floor((deck.cost||500) * market.priceScale);
+      const owned = (S.ownedHW||[]).includes(deck.id);
+      const canAfford = S.cred >= scaledCost;
+
+      html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0">
+        <span style="font-size:14px;color:${mfr.color||'#40c060'};width:18px;text-align:center">${mfr.icon||'▦'}</span>
+        <div style="flex:1">
+          <div style="font-size:8px;color:${deck.color||mfr.color||'#40c060'}">${deck.name}${owned?' <span style="font-size:6px;color:#2a4a2a">[owned]</span>':''}</div>
+          <div style="font-size:6px;color:#1a4a2a">RAM ${deck.ram} · +${deck.integrity} INT · ${deck.slots} slots${deck.sigPerk?' · ★ '+deck.sigPerk:''}</div>
+        </div>
+        <button onclick="buyNetItem('deck','${deck.id}',${scaledCost},'${co.key}')"
+          style="font-size:7px;padding:2px 6px;background:${!owned&&canAfford?'#0a1a0e':'#0a0d0a'};
+            border:1px solid ${!owned&&canAfford?mfr.color||'#2a6a3a':'#1a2a1a'};
+            color:${!owned&&canAfford?mfr.color||'#40c060':'#1a4a2a'};border-radius:2px;
+            cursor:${!owned&&canAfford?'pointer':'default'};white-space:nowrap">
+          ${scaledCost}₵
+        </button>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function buyNetItem(type, id, cost, companyKey){
+  if(S.cred < cost){ addLog(`Need ${cost}₵`,'lw'); return; }
+  S.cred -= cost;
+  if(type==='prog'){
+    if(typeof addInv==='function') addInv(id);
+    const d = typeof pdef==='function' ? pdef(id) : null;
+    addLog(`Purchased ${d?.name||id} (-${cost}₵)`,'lg');
+  } else if(type==='attach'){
+    if(typeof buyAttachment==='function') buyAttachment(id, cost, true);
+    else { const a=ATTACHMENTS?.[id]; addLog(`Purchased ${a?.name||id} (-${cost}₵)`,'lg'); }
+  } else if(type==='deck'){
+    const dk=typeof HARDWARE!=='undefined'?HARDWARE.find(h=>h.id===id):null;
+    if(dk&&typeof buyHW==='function'){ buyHW(id, cost, true); addLog(`Purchased ${dk.name} (-${cost}₵)`,'lg'); }
+    else addLog(`Purchased deck (-${cost}₵)`,'lg');
+  }
+  renderTopBar();
+  renderNetMarket();
+  if(typeof checkNetMarketPurchase==='function') checkNetMarketPurchase(companyKey);
+  if(typeof autoSave==='function') autoSave();
+}
+
+
 function renderTopBar(){
   const iMax=maxInt();const tier=curTier();
   document.getElementById('s-cred').textContent=S.cred.toLocaleString();
   document.getElementById('s-lvl').textContent=S.level;
   document.getElementById('s-xp').textContent=`${S.xp}/${xpToLvl(S.level)}`;
+  const xpPoolEl=document.getElementById('s-xp-pool');
+  if(xpPoolEl)xpPoolEl.textContent=(S.xpPool||0).toLocaleString();
   document.getElementById('s-tier').textContent=tier;
   document.getElementById('s-int').textContent=`${S.integrity}/${iMax}`;
   // Program RAM: use snapshot during run so display is stable
@@ -532,7 +856,7 @@ function renderTopBar(){
       const cpuStr=S._cpuVisits>0?` ◈${S._cpuVisits}`:'';
       const olStr=S._overloadActive?' OL':'';
       const slotsStr=S.processingSlots>1?` ×${S.processingSlots}`:'';
-      gm.textContent=`[${S.player.r},${S.player.c}]→[${S.rows-1},${S.cols-1}]${cpuStr}${olStr}${slotsStr}`;
+      gm.textContent=`cell [${S.player.r},${S.player.c}]${cpuStr}${olStr}${slotsStr}`;
     }
   }else{
     const gm=document.getElementById('grid-section-meta');if(gm)gm.textContent='';
@@ -542,18 +866,17 @@ function renderTopBar(){
 
 
 function updateLayoutForTier(){
-  const cols=S.cols||3;
-  // Grid needs: 54px per cell + 2px gap between + 10px padding inside grid-section
-  const gridNeed=cols*56+20;
-  // Contract board above grid needs ~320px minimum
-  // left-col = max of contract board min and grid need
-  const leftW=Math.max(320, gridNeed);
-  // right-panel: fixed 300px minimum, let it flex if space allows
-  const rp=document.getElementById('right-panel');
   const lc=document.getElementById('left-col');
-  if(lc)lc.style.width=leftW+'px';
-  // right-panel stays at its CSS-defined width — don't override it
-  // The layout will scroll horizontally if total exceeds viewport (that's fine)
+  if(!lc) return;
+  if(S.mesh?.currentNet && !S.running){
+    // Net map view: 16 cols × 42px per cell + padding = ~690px
+    lc.style.width = Math.max(700, window.innerWidth * 0.55 | 0) + 'px';
+  } else {
+    // Node run view: size to grid cols
+    const cols = S.cols || 3;
+    const gridNeed = cols * 56 + 20;
+    lc.style.width = Math.max(320, gridNeed) + 'px';
+  }
 }
 
 function centerGridOnPlayer(){
@@ -693,8 +1016,8 @@ function renderRunner(){
   const iMax=maxInt();
   const hp=document.getElementById('r-hp');if(hp)hp.textContent=`${S.integrity}/${iMax}`;
   const hpb=document.getElementById('r-hp-bar');if(hpb){hpb.style.width=`${(S.integrity/iMax)*100}%`;hpb.style.background=S.integrity<iMax*0.3?'#c04040':S.integrity<iMax*0.6?'#c08020':'#20c040';}
-  const tr=document.getElementById('r-trace');if(tr)tr.textContent=`${S.trace}%`;
-  const trb=document.getElementById('r-trace-bar');if(trb)trb.style.width=`${S.trace}%`;
+  const tr=document.getElementById('r-trace');if(tr)tr.textContent=`${parseFloat(S.trace.toFixed(2))}%`;
+  const trb=document.getElementById('r-trace-bar');if(trb)trb.style.width=`${Math.min(100,S.trace)}%`;
   const ra=document.getElementById('r-alert');
   const alertColors=['#40c060','#ffd040','#ff4020'];
   const alertCol=alertColors[S.alert];
@@ -1060,6 +1383,7 @@ function renderCraft(){
 
   function canShowBlueprint(bp){
     if(S.craftedBps.includes(bp.id))return false;   // already crafted
+    if(bp.result&&(S.inventory||[]).some(it=>it.defId===bp.result))return false; // already owned
     // Starters always visible; all others require discovery
     if(typeof STARTER_BPS!=='undefined'&&!STARTER_BPS.includes(bp.id)){
       if(!S.earnedBps.includes(bp.id))return false;  // not yet discovered
@@ -1274,35 +1598,6 @@ function renderStats(){
   `;
 }
 
-function renderAchievements(){
-  const el=document.getElementById('ach-inner');if(!el)return;
-  if(typeof initAchievements==='function')initAchievements();
-  const cats={run:'Run Feats',prog:'Milestones',disc:'Discoveries'};
-  const unlocked=Object.values(ACHIEVEMENTS).filter(a=>hasAch(a.id)).length;
-  const total=Object.values(ACHIEVEMENTS).length;
-  let html=`<div style="font-size:9px;color:#3a6a3a;margin-bottom:4px">${unlocked}/${total} unlocked</div>`;
-  html+=`<div style="height:4px;background:#1a2a1a;border-radius:2px;margin-bottom:10px">
-    <div style="height:100%;width:${Math.round(unlocked/total*100)}%;background:#40ff80;border-radius:2px"></div>
-  </div>`;
-  Object.entries(cats).forEach(([cat,catName])=>{
-    const achs=Object.values(ACHIEVEMENTS).filter(a=>a.cat===cat);
-    html+=`<div class="ptitle" style="margin-top:6px">${catName}</div>`;
-    html+=achs.map(a=>{
-      const done=hasAch(a.id);
-      const when=done?new Date(S.achievements[a.id].unlockedAt).toLocaleDateString():'';
-      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin-bottom:2px;
-        background:${done?'#0a1a0a':'#080d10'};border:1px solid ${done?'#1a4a1a':'#0d1a0d'};border-radius:3px;opacity:${done?1:0.4}">
-        <span style="font-size:13px;width:20px;text-align:center">${a.icon}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:9px;color:${done?'#40ff80':'#3a5a3a'}">${a.name}</div>
-          <div style="font-size:7px;color:#2a4a2a">${a.desc}</div>
-        </div>
-        ${done?`<span style="font-size:7px;color:#1a4a1a;white-space:nowrap">${when}</span>`:''}
-      </div>`;
-    }).join('');
-  });
-  el.innerHTML=html;
-}
 
 function renderProgressionScreen(){
   const el=document.getElementById('prog-inner');if(!el)return;
@@ -1319,7 +1614,7 @@ function renderProgressionScreen(){
     <div class="xp-bar-wrap"><div class="xp-bar" style="width:${pct}%"></div></div>
     <div style="display:flex;justify-content:space-between;font-size:9px;color:#3a6a3a;margin-top:3px"><span>T${tier} · ${tg[0]}×${tg[1]}</span></div>
     ${S.permIntLoss>0?`<div style="font-size:8px;color:#c04040;margin-top:3px">⚠ Perm INT loss: -${S.permIntLoss}</div>`:''}
-    ${S.traceCarry>0?`<div style="font-size:8px;color:#aa6020;margin-top:2px">◎ Trace carry: ${S.traceCarry}%</div>`:''}
+    ${S.traceCarry>0?`<div style="font-size:8px;color:#aa6020;margin-top:2px">◎ Trace carry: ${parseFloat(S.traceCarry.toFixed(2))}%</div>`:''}
   </div>`;
 
   // Prestige
@@ -1395,24 +1690,46 @@ function renderProgressionScreen(){
     // Per-net company rep — show nets visited and their companies
     const sfHtml=(()=>{
       const nets=S.mesh?.visitedNets||[];
-      if(!nets.length) return '<div style="font-size:8px;color:#1a4a2a;padding:8px">No nets visited yet.</div>';
-      return nets.filter(ns=>(ns.rep&&Object.keys(ns.rep).length>0)).map(ns=>{
+      const currentKey=typeof currentNetKey==='function'?currentNetKey():null;
+      const netsWithRep=nets.filter(ns=>ns.rep&&Object.keys(ns.rep).length>0);
+      if(!netsWithRep.length) return '<div style="font-size:8px;color:#1a4a2a;padding:8px">No rep earned yet.</div>';
+      const facColors={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060',gov:'#a0a040'};
+
+      return netsWithRep.map(ns=>{
         const nk=typeof netKey==='function'?netKey(ns.x,ns.y):'?';
-        const companies=Object.values(ns.companies||{}).flat();
-        return '<div style="margin-bottom:10px">'
-          +'<div style="font-size:8px;color:#2a5a3a;margin-bottom:4px;font-family:Orbitron,monospace">NET '+nk+'</div>'
-          +companies.map(co=>{
-            const r=ns.rep?.[co.key]||0; if(!r)return'';
-            const col={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060',gov:'#a0a040'}[co.faction]||'#60a060';
-            const tier=r>=4000?'Legend':r>=1500?'Elite':r>=500?'Trusted':r>=100?'Known':'Unknown';
-            return `<div style="padding:3px 0 3px 8px;border-left:2px solid ${col}44;margin-bottom:2px;display:flex;gap:8px;align-items:center">
-              <span style="font-size:8px;color:${col};flex:1">${co.name}</span>
-              <span style="font-size:7px;color:#2a5a2a">${tier}</span>
-              <span style="font-size:8px;color:#40c060">${r}</span>
-            </div>`;
-          }).filter(Boolean).join('')
-          +'</div>';
-      }).join('') || '<div style="font-size:8px;color:#1a4a2a;padding:8px">No rep earned yet.</div>';
+        const isCurrent=nk===currentKey;
+        const companies=Object.values(ns.companies||{}).flat().filter(co=>ns.rep?.[co.key]>0);
+        if(!companies.length) return '';
+
+        if(isCurrent){
+          // Current net: show each company in full
+          return '<div style="margin-bottom:8px">'
+            +'<div style="font-size:7px;color:#2a5a3a;margin-bottom:4px;font-family:Orbitron,monospace;letter-spacing:1px">CURRENT NET</div>'
+            +companies.map(co=>{
+              const r=ns.rep?.[co.key]||0;
+              const col=facColors[co.faction]||'#60a060';
+              const tier=r>=4000?'Legend':r>=1500?'Elite':r>=500?'Trusted':r>=100?'Known':'Unknown';
+              return `<div style="padding:3px 0 3px 8px;border-left:2px solid ${col}44;margin-bottom:2px;display:flex;gap:8px;align-items:center">
+                <span style="font-size:8px;color:${col};flex:1">${co.name}</span>
+                <span style="font-size:7px;color:#2a5a2a">${tier}</span>
+                <span style="font-size:8px;color:#40c060">${r}</span>
+              </div>`;
+            }).filter(Boolean).join('')
+            +'</div>';
+        } else {
+          // Other nets: single collapsed summary line
+          const total=companies.reduce((a,co)=>a+(ns.rep?.[co.key]||0),0);
+          const maxRep=Math.max(...companies.map(co=>ns.rep?.[co.key]||0));
+          const tier=maxRep>=4000?'Legend':maxRep>=1500?'Elite':maxRep>=500?'Trusted':maxRep>=100?'Known':'Unknown';
+          return `<div style="display:flex;gap:8px;align-items:center;padding:3px 6px;margin-bottom:2px;
+            border:1px solid #1a2a1a;border-radius:2px;cursor:default">
+            <span style="font-size:7px;color:#2a5a3a;font-family:Share Tech Mono,monospace;flex:1">${nk.slice(0,18)}…</span>
+            <span style="font-size:6px;color:#1a4a2a">${companies.length} co.</span>
+            <span style="font-size:7px;color:#2a6a2a">${tier}</span>
+            <span style="font-size:7px;color:#3a6a3a">${total} rep</span>
+          </div>`;
+        }
+      }).filter(Boolean).join('') || '<div style="font-size:8px;color:#1a4a2a;padding:8px">No rep earned yet.</div>';
     })();
     repEl2.innerHTML='<div class="ptitle">Faction Reputation</div>'+repHtml
       +(sfHtml?'<div class="ptitle" style="margin-top:10px">Sub-Faction Rep</div>'+sfHtml:'');
@@ -1614,7 +1931,7 @@ function showRunSummary(){
     <div class="sum-label">Run Stats</div>
     <div class="sum-row"><span class="sum-key">Integrity</span><span class="sum-val ${s.integrityLeft<s.integrityMax*0.3?'bad':s.integrityLeft<s.integrityMax*0.6?'warn':'good'}">${s.integrityLeft}/${s.integrityMax}</span></div>
     <div class="sum-row"><span class="sum-key">Alert reached</span><span class="sum-val ${s.alertReached==='RED'?'bad':s.alertReached==='YELLOW'?'warn':'good'}">${s.alertReached}</span></div>
-    <div class="sum-row"><span class="sum-key">Trace</span><span class="sum-val ${s.traceEnd>75?'bad':s.traceEnd>40?'warn':'good'}">${s.traceEnd}%</span></div>
+    <div class="sum-row"><span class="sum-key">Trace</span><span class="sum-val ${s.traceEnd>75?'bad':s.traceEnd>40?'warn':'good'}">${parseFloat((s.traceEnd||0).toFixed(2))}%</span></div>
   </div>`;
 
   // Files remaining in RAM
@@ -1640,6 +1957,8 @@ function showRunSummary(){
 function hideRunSummary(){
   const el=document.getElementById('run-summary');
   if(el)el.style.display='none';
+  // If in a net, re-render net map underneath
+  if(S.mesh?.currentNet && typeof renderNetView==='function') renderNetView();
 }
 
 function summaryLaunchNow(){

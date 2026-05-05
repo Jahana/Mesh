@@ -127,6 +127,7 @@ function applyNextRunOps(){
 }
 
 function autoMaintenance(){
+  if(typeof unlockAch==='function') unlockAch('full_maint');
   // Run applicable maintenance ops between runs (autorun only)
   // Instant ops fire immediately; defrag is allowed to delay the run
   const maintOps=OPS_BY_CAT.maint||[];

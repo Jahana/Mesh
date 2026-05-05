@@ -1,4 +1,4 @@
-// MESH v0.5 — data.js
+// MESH v0.5.4 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -568,6 +568,100 @@ const PDEFS=[
   {id:'polymorph_2',   name:'Polymorph v2', icon:'⟁',cat:'utility',tier:4,mem:4,cost:2000, faction:'gen',  passive:false,effect:'polymorph2', desc:'Swap any programs freely mid-run.',prestigeReq:10},
 ];
 // Crafting: time (seconds) + cred cost. No ingredient consumption.
+
+// ── CHARACTER STATS ──────────────────────────────────────────────────────
+// Stats grow by spending XP. Deck hardware adds bonuses on top.
+// Diminishing returns: cost = base_cost * (1 + current_level * 0.5)
+
+const CHAR_STATS = {
+  neural_buffer: {
+    id:'neural_buffer', name:'Neural Buffer', icon:'▦',
+    desc:'Raw processing capacity. Increases max RAM for programs.',
+    color:'#40aaff',
+    baseCost: 50,
+    effect: (lvl) => ({ ramBonus: lvl * 2 }),
+    displayEffect: (lvl) => `+${lvl*2} RAM`,
+  },
+  reflex: {
+    id:'reflex', name:'Reflex', icon:'⚡',
+    desc:'Reaction speed in the mesh. Reduces movement and action ticks.',
+    color:'#ffdd40',
+    baseCost: 60,
+    effect: (lvl) => ({ tickReduction: Math.floor(lvl * 0.4) }),
+    displayEffect: (lvl) => `-${Math.floor(lvl*0.4)} ticks/move`,
+  },
+  stealth: {
+    id:'stealth', name:'Stealth', icon:'◌',
+    desc:'Ability to stay dark. Increases pressure decay and Hide effectiveness.',
+    color:'#8060d0',
+    baseCost: 55,
+    effect: (lvl) => ({ pressureDecayBonus: lvl * 2, hideBonus: Math.floor(lvl * 0.3) }),
+    displayEffect: (lvl) => `+${lvl*2} pressure decay, +${Math.floor(lvl*0.3)} Hide`,
+  },
+  integrity: {
+    id:'integrity', name:'Integrity', icon:'◈',
+    desc:'Neural resilience. Increases max integrity independent of deck.',
+    color:'#40ff80',
+    baseCost: 65,
+    effect: (lvl) => ({ intBonus: lvl * 3 }),
+    displayEffect: (lvl) => `+${lvl*3} max INT`,
+  },
+  trace_resist: {
+    id:'trace_resist', name:'Trace Resist', icon:'◎',
+    desc:'Ability to mask identity. Slows trace accumulation and raises trace cap.',
+    color:'#ff8040',
+    baseCost: 55,
+    effect: (lvl) => ({ traceResist: lvl * 3, traceCapBonus: lvl * 2 }),
+    displayEffect: (lvl) => `-${lvl*3}% trace gain, +${lvl*2}% cap`,
+  },
+  intrusion: {
+    id:'intrusion', name:'Intrusion', icon:'⬡',
+    desc:'Breaker efficiency. Adds flat STR bonus to all breakers against ICE.',
+    color:'#c04040',
+    baseCost: 70,
+    effect: (lvl) => ({ breakerBonus: lvl }),
+    displayEffect: (lvl) => `+${lvl} all breaker STR`,
+  },
+};
+
+const CHAR_STAT_KEYS = Object.keys(CHAR_STATS);
+
+// Cost to raise a stat from its current level by 1
+function statUpgradeCost(statId, currentLevel){
+  const base = CHAR_STATS[statId]?.baseCost || 50;
+  // Levels 0-19: soft diminishing returns (base * 1 + lvl * 0.5)
+  // Level 20+:   each additional level costs 4× the previous level's cost
+  if(currentLevel < 20){
+    return Math.floor(base * (1 + currentLevel * 0.5));
+  } else {
+    // Cost at level 19 (the last pre-20 cost)
+    const costAt19 = Math.floor(base * (1 + 19 * 0.5));
+    // Each level past 20 multiplies by 4
+    return Math.floor(costAt19 * Math.pow(4, currentLevel - 19));
+  }
+}
+
+// Get effective stat value (character + deck bonus)
+function charStat(statId){
+  const lvl = S.charStats?.[statId] || 0;
+  return lvl;
+}
+
+// Get total effect of a stat including level
+function statEffect(statId){
+  const lvl = charStat(statId);
+  return CHAR_STATS[statId]?.effect(lvl) || {};
+}
+
+// Combined character bonus to RAM (character + deck + attachments)
+function charRamBonus(){ return statEffect('neural_buffer').ramBonus || 0; }
+function charIntBonus(){ return statEffect('integrity').intBonus || 0; }
+function charBreakerBonus(){ return statEffect('intrusion').breakerBonus || 0; }
+function charTraceResist(){ return statEffect('trace_resist').traceResist || 0; }
+function charTraceCapBonus(){ return statEffect('trace_resist').traceCapBonus || 0; }
+function charPressureDecayBonus(){ return statEffect('stealth').pressureDecayBonus || 0; }
+function charTickReduction(){ return statEffect('reflex').tickReduction || 0; }
+
 const BLUEPRINTS=[
   // Tier 1-3 programs (always available)
   {id:'bp_f3',  name:'Fracter Mk3',   result:'fracter_3', craftTime:180, credCost:400},
@@ -641,6 +735,81 @@ const DECK_MFR_FACTION={
   novatek:'anarch',
 };
 
+
+// ── NET MARKET ────────────────────────────────────────────────────────────
+// Each faction offers a curated selection of items scaled to mesh distance.
+// Items are deterministic per company (seeded by company key).
+// Stats and prices scale with mesh distance.
+
+const NET_MARKET_BY_FACTION = {
+  corp:    { programs:['decoder_1','decoder_2','decoder_3','soothe_1','soothe_2','soothe_3','scan_2','scan_3','decrypt_1','decrypt_2','armor_1','armor_2','spoof_1'],
+             attachments:['ram_chip','ram_chip_2','ram_chip_3','trace_filter','neural_buf','neural_buf2'],
+             decks:['haas','nbn'] },
+  crim:    { programs:['killer_1','killer_2','killer_3','deceive_1','deceive_2','ghost_p','hide_1','hide_2','switchblade','polymorph_1'],
+             attachments:['storage_chip','storage_chip_2','storage_chip_3','trace_filter','coprocessor'],
+             decks:['jinteki','novatek'] },
+  anarch:  { programs:['fracter_1','fracter_2','fracter_3','zap_1','zap_2','zap_3','intercept','overclock','overclock_2','hide_2','cloak_p'],
+             attachments:['ram_chip','coprocessor','turbo_proc','ice_ai','cryo_cooler'],
+             decks:['novatek','haas'] },
+  neutral: { programs:['scan_1','scan_2','hide_1','deceive_1','soothe_1','decrypt_1','zap_1','fracter_1','decoder_1','killer_1'],
+             attachments:['ram_chip','storage_chip','trace_filter','coprocessor'],
+             decks:['haas','weyland','jinteki','nbn','novatek'] },
+  gov:     { programs:['scan_3','decrypt_2','armor_2','spoof_1','soothe_3'],
+             attachments:['neural_buf2','ram_chip_3','stealth_os','trace_scrub'],
+             decks:['weyland'] },
+};
+
+// How many items each company shows (seeded selection)
+const NET_MARKET_COUNT = { programs:3, attachments:2, decks:1 };
+
+// Distance scaling for net market items
+function netMarketPriceScale(meshDist){
+  return 1 + meshDist * 0.08; // +8% per unit distance
+}
+
+function netMarketStatScale(meshDist){
+  return 1 + Math.floor(meshDist / 8); // +1 tier every 8 units distance
+}
+
+// Generate deterministic net market for a company
+function genCompanyMarket(company, meshDist){
+  const pool = NET_MARKET_BY_FACTION[company.faction] || NET_MARKET_BY_FACTION.neutral;
+  const seed0 = (company.key || company.name || '').split('').reduce((a,c)=>a^c.charCodeAt(0)*31,0xCAFE);
+  function seededPick(arr, count, seed){
+    if(!arr?.length) return [];
+    const s = arr.slice();
+    const result = [];
+    let st = seed >>> 0;
+    for(let i=0;i<count&&s.length;i++){
+      st=(st*1664525+1013904223)>>>0;
+      const idx=st%s.length;
+      result.push(s.splice(idx,1)[0]);
+    }
+    return result;
+  }
+  const meshTier = netMarketStatScale(meshDist);
+  const priceScale = netMarketPriceScale(meshDist);
+
+  // Filter programs by minMeshDist and tier cap
+  const availProgs = (pool.programs||[]).filter(id=>{
+    const d=PDEFS?.find(p=>p.id===id);
+    return d && meshDist >= (d.minMeshDist||0);
+  });
+  const progIds = seededPick(availProgs, NET_MARKET_COUNT.programs, seed0^0x1111);
+  const attachIds = seededPick(pool.attachments||[], NET_MARKET_COUNT.attachments, seed0^0x2222);
+  const deckIds = seededPick(pool.decks||[], NET_MARKET_COUNT.decks, seed0^0x3333);
+
+  return {
+    company,
+    meshDist,
+    meshTier,
+    priceScale,
+    programs: progIds,
+    attachments: attachIds,
+    decks: deckIds,
+  };
+}
+
 const MKT_POOL={
   gen:  ['fracter_1','fracter_2','decoder_1','decoder_2','killer_1','killer_2',
          'hide_1','deceive_1','deceive_2','scan_1','scan_2','decrypt_1','soothe_1','zap_1'],
@@ -686,9 +855,9 @@ const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 const pdef=id=>PDEFS.find(p=>p.id===id);
 const hwdef=()=>HARDWARE.find(h=>h.id===S.hardware);
 const ramUsed=()=>S.installed.reduce((a,iid)=>{const it=S.inventory.find(x=>x.instId===iid);return a+(it?pdef(it.defId)?.mem||0:0);},0);
-const ramMax=()=>(hwdef()?.ram||8)+attachEffect('ram');
+const ramMax=()=>(hwdef()?.ram||8)+attachEffect('ram')+(typeof charRamBonus==='function'?charRamBonus():0);
 const storageMax=()=>(hwdef()?.storage||8)+attachEffect('storage');
-const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+S.prestige+attachEffect('integrity')-(S.permIntLoss||0));
+const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+S.prestige+attachEffect('integrity')-(S.permIntLoss||0)+(typeof charIntBonus==='function'?charIntBonus():0));
 const curTier=()=>levelToTier(S.level);
 const prestigeThresholds=[20,40,60,80,100];
 const nextPrestigeLevel=()=>prestigeThresholds.find(t=>t>S.level-S.prestige*20)||null;
@@ -702,7 +871,21 @@ const xpToLvl=lvl=>{
   if(lvl<=60) return lvl*500;
   return lvl*800; // deep endgame — each level is a real achievement
 };
-const iceStr=(t,tier)=>Math.max(1,(BASE_ICE[t]?.baseStr||2)+Math.max(0,tier-1)+(tier>=8?Math.floor((tier-7)/2):0)-(S._anarchBonus||0));
+const iceStr=(t,tier)=>{
+  const base = BASE_ICE[t]?.baseStr || 2;
+  const anarch = S._anarchBonus || 0;
+  // In a net node: scale by mesh distance for faster/harsher ramp
+  if(S.mesh?.currentNet){
+    const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+    // +1 STR per 3 distance units, with extra multiplier past key thresholds
+    const distBonus = Math.floor(dist / 3);
+    const glitchBonus = dist >= 16 ? Math.floor((dist - 16) / 8) : 0;   // extra past glitch
+    const deepBonus   = dist >= 64 ? Math.floor((dist - 64) / 16) : 0;  // extra past static
+    return Math.max(1, base + distBonus + glitchBonus + deepBonus - anarch);
+  }
+  // Outside net: use level-based tier (firmware tutorial, legacy)
+  return Math.max(1, base + Math.max(0,tier-1) + (tier>=8?Math.floor((tier-7)/2):0) - anarch);
+};
 // Available ICE filtered by mesh distance
 const availICE=()=>Object.entries(BASE_ICE).filter(([k,v])=>!v.prestigeReq||S.prestige>=v.prestigeReq).map(([k])=>k);
 

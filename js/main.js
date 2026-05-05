@@ -1,4 +1,4 @@
-// MESH v0.5 — main.js
+// MESH v0.5.4 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -48,7 +48,8 @@ function gameTick(ts){
 
   // Natural pressure decay at GREEN — very slow, reward for staying quiet
   if(S.alertPressure>0&&S.alert===0&&S.tick%30===0){
-    S.alertPressure=Math.max(0,S.alertPressure-1); // −1 pressure per 30 ticks at GREEN (very slow)
+    const _stealthDecay = 1 + (typeof charPressureDecayBonus==='function' ? Math.floor(charPressureDecayBonus()/10) : 0);
+    S.alertPressure=Math.max(0,S.alertPressure-_stealthDecay); // base −1 + stealth bonus
     S.alert=pressureToAlert(S.alertPressure);
   }
 
@@ -63,6 +64,7 @@ function gameTick(ts){
       totalReduction+=rate+(coolingBonus>0?2:0);
     });
     if(S._mfrPerk?.autoSoothe&&S.alertPressure>0)totalReduction+=5; // Vantage mythic
+    if(S.alertPressure>0){ const _sd=typeof charPressureDecayBonus==='function'?charPressureDecayBonus():0; if(_sd>0) totalReduction+=Math.floor(_sd/5); } // Stealth stat
     if(totalReduction>0){
       const prevAlert=S.alert;
       reducePressure(totalReduction);
@@ -85,7 +87,7 @@ function gameTick(ts){
       S.trace=Math.max(0,S.trace-traceDecay);
     }else if(S.alert===2&&S.tick%10===0){
       // At RED: trace creeps up passively
-      S.trace=Math.min(100,S.trace+0.5);
+      { const _tr3=typeof charTraceResist==='function'?charTraceResist():0; S.trace=Math.min(100,S.trace+Math.max(0,0.5*(1-_tr3/100))); }
     }
   }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MESH v0.5</title>
+<title>MESH v0.5.4</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -439,15 +439,20 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="stat"><span class="lbl">CRED</span><span class="val" id="s-cred">0</span></div>
   <div class="stat"><span class="lbl">LVL</span><span class="val" id="s-lvl">1</span></div>
   <div class="stat"><span class="lbl">XP</span><span class="val" id="s-xp">0/100</span></div>
+  <div class="stat" title="Spendable XP pool for character stats"><span class="lbl">POOL</span><span class="val" id="s-xp-pool" style="color:#40aaff">0</span></div>
   <div class="stat"><span class="lbl">TIER</span><span class="val" id="s-tier">1</span></div>
   <div class="stat"><span class="lbl">INT</span><span class="val" id="s-int">10/10</span></div>
   <div class="stat"><span class="lbl">RAM</span><span class="val" id="s-ram">0/8</span></div>
   <div id="alert-badge" class="ag" style="display:none">● GREEN</div>
   <span id="context-nav" style="display:flex;gap:4px;align-items:center;margin-left:auto"></span>
+  <button class="refresh-btn" id="autorun-toggle-btn" onclick="toggleAutoRun()" title="Toggle auto-run" style="display:none">AUTO ●</button>
   <button class="refresh-btn" onclick="showTab('save')">💾 Save</button>
 </div>
 <div id="tabs">
+  <div class="tab" id="tab-char" onclick="showTab('char')">⬡ CHAR</div>
   <div class="tab active" id="tab-run" onclick="showTab('run')">▸ RUN</div>
+  <div class="tab" id="tab-net" onclick="showTab('net')" style="display:none">⬡ NET</div>
+  <div class="tab" id="tab-mesh" onclick="showTab('mesh')" style="display:none">⬡ MESH</div>
   <div class="tab" id="tab-deck" onclick="showTab('deck')">⬡ DECK</div>
   <div class="tab" id="tab-market" onclick="showTab('market')">▸ MARKET</div>
   <div class="tab" id="tab-craft" onclick="showTab('craft')">⚙ CRAFT</div>
@@ -466,7 +471,7 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
   <div class="ts-scanline"></div>
   <div class="ts-logo">MESH</div>
   <div class="ts-tagline">"All the nets that ever were, are, or will be make up the Mesh"</div>
-  <div class="ts-version">OS v0.5 — IDLE NETRUNNER</div>
+  <div class="ts-version">OS v0.5.4 — IDLE NETRUNNER</div>
   <div id="ts-content" class="ts-btns">
     <!-- filled by JS -->
   </div>
@@ -503,7 +508,6 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
           <span id="deck-label" style="font-size:7px;font-family:'Share Tech Mono',monospace;color:#60c080;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
           <span id="perm-state" style="font-size:7px;font-family:'Share Tech Mono',monospace;min-width:40px"></span>
           <span id="topbar-btns" style="display:flex;gap:4px;align-items:center"><button class="refresh-btn" onclick="showPatchNotes()" title="Patch notes / help" style="color:#2a6a4a">?</button>
-          <button class="refresh-btn" id="autorun-toggle-btn" onclick="toggleAutoRun()" title="Toggle auto-run" style="display:none">AUTO ●</button>
           </span>
         </div>
       </div>
@@ -523,6 +527,19 @@ body{background:#060a10;color:#a0c8a0;font-family:'Share Tech Mono',monospace;fo
 
   <!-- RIGHT: tabbed panel -->
   <div id="right-panel">
+
+    <!-- CHARACTER tab -->
+    <div id="tab-char-content" class="rpanel" style="overflow-y:auto">
+      <!-- rendered by renderCharacterTab() -->
+    </div>
+
+    <!-- NET tab — shows net map independently of run -->
+    <div id="tab-net-content" class="rpanel">
+      <div id="net-tab-inner" style="overflow:auto;flex:1;display:flex;flex-direction:column;gap:4px;padding:4px">
+        <div id="net-tab-label" style="font-size:8px;color:#2a5a3a;font-family:'Orbitron',monospace;letter-spacing:1px"></div>
+        <div id="net-tab-grid" style="overflow:auto;flex:1"></div>
+      </div>
+    </div>
 
     <!-- MESH tab — Mesh coordinate space / traversal -->
     <div id="tab-mesh-content" class="rpanel" style="padding:8px;gap:6px">

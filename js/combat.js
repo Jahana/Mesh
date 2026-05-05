@@ -65,7 +65,9 @@ function startCombat(cell){
   const leechPenalty=S._leechDrain||0;
   const daemonBonus=getByEffect('daemon').reduce((a,{d})=>a+(d.power||1),0);
   const overclock2Bonus=getByEffect('overclock2').reduce((a,{d})=>a+(d.power||6),0);
-  const effStr=Math.max(1,bd.str+overBonus+cpuBonus+attachBonus+daemonBonus+overclock2Bonus-leechPenalty);
+  const charBreaker=(typeof charBreakerBonus==='function'?charBreakerBonus():0);
+  const effStr=Math.max(1,bd.str+overBonus+cpuBonus+attachBonus+daemonBonus+overclock2Bonus-leechPenalty+charBreaker);
+  if(charBreaker>0)addLog(`◈ Intrusion: +${charBreaker} STR`,'li');
   if(daemonBonus>0)addLog(`◈ Daemon: +${daemonBonus} STR`,'li');
   if(overclock2Bonus>0)addLog(`⚙ Overclock v2: +${overclock2Bonus} STR`,'li');
   if(leechPenalty>0)addLog(`⊗ Leech drain: -${leechPenalty} STR`,'lw');
@@ -103,6 +105,7 @@ function resolveCombatRound(){
       cell._cascadedAlready=true;
       cell.ice='BARRIER';
       addLog(`✓ CASCADE defeated — Barrier spawned!`,'lw');
+      if(typeof checkCascadeChain==='function')checkCascadeChain();
     }else{
       addLog(`✓ ${c.iceType} defeated`,'lg');
       if(cell)cell.ice=null;
@@ -125,7 +128,7 @@ function resolveCombatRound(){
   // Per-ICE retaliation side effects
   switch(c.iceType){
     case 'GATEKEEPER': raiseAlert(1); break;
-    case 'BARRIER':    S.trace=Math.min(100,S.trace+15);addLog('  Barrier: +15% trace','lw'); break;
+    case 'BARRIER':    { const _tr=typeof charTraceResist==='function'?charTraceResist():0; const _ta=Math.max(1,Math.round(15*(1-_tr/100))); S.trace=Math.min(100,S.trace+_ta);addLog(`  Barrier: +${_ta}% trace`+((_tr>0)?` (resist -${15-_ta})`:''),'lw'); break; }
     case 'GUARDIAN':
       // Disable a random program for this run
       if(S.runSnapshot.installed.length>0){
@@ -162,7 +165,7 @@ function resolveCombatRound(){
     case 'OMEGA':
       // All effects: pressure, trace, INT loss
       addPressure(20);
-      S.trace=Math.min(100,S.trace+5);
+      { const _tr=typeof charTraceResist==='function'?charTraceResist():0; S.trace=Math.min(100,S.trace+Math.max(1,Math.round(5*(1-_tr/100)))); }
       addLog('  Omega: +20 pressure, +5% trace','lb');
       if(!c._omegaIntHit){c._omegaIntHit=true;S.permIntLoss=(S.permIntLoss||0)+1;addLog('  Omega: max INT permanently -1','lb');}
       if(S.alertPressure>=PRESSURE_MAX){spawnHunter();addLog('  Omega: Hunter spawned!','lb');}

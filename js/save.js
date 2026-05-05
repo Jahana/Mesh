@@ -1,4 +1,4 @@
-// MESH v0.5 — save.js
+// MESH v0.5.4 — save.js
 // ===================
 
 const SAVE_VER=1;
@@ -8,13 +8,13 @@ let _autoSlot=null;
 
 function buildSave(name){
   return{version:SAVE_VER,slotName:name||'Runner',savedAt:Date.now(),
-    cred:S.cred,level:S.level,xp:S.xp,prestige:S.prestige,rep:S.rep,
+    cred:S.cred,level:S.level,xp:S.xp,xpPool:S.xpPool||0,prestige:S.prestige,rep:S.rep,
     hardware:S.hardware,ownedHW:S.ownedHW,
     inventory:S.inventory,installed:S.installed,
     backdoorCell:S.backdoorCell,
     runHistory:S.runHistory,totalRuns:S.totalRuns,totalCred:S.totalCred,craftedBps:S.craftedBps||[],earnedBps:S.earnedBps||[],attachments:S.attachments||[],
     traceCarry:S.traceCarry||0,permIntLoss:S.permIntLoss||0,ops:S.ops||{},
-    achievements:S.achievements||{},stats:S.stats||{},
+    achievements:S.achievements||{},stats:S.stats||{},charStats:S.charStats||{},
     mesh:S.mesh||null,world:S.world||null,inTutorial:S.inTutorial||false,tutorialNet:S.tutorialNet||null,
     shop:S.shop,shopNextRotate:S.shopNextRotate,
     bmRotation:S._bmRotation||[],bmNextRotate:S._bmNextRotate||0,
@@ -23,7 +23,7 @@ function buildSave(name){
 }
 function applyLoad(data){
   S=mkState();
-  S.cred=data.cred||0;S.level=data.level||1;S.xp=data.xp||0;S.prestige=data.prestige||0;
+  S.cred=data.cred||0;S.level=data.level||1;S.xp=data.xp||0;S.xpPool=data.xpPool||0;S.prestige=data.prestige||0;
   S.rep=data.rep||{corp:0,crim:0,anarch:0,neutral:0};
   // Merge saved subrep over fresh defaults to handle new sub-factions added in updates
   // subrep removed
@@ -40,13 +40,14 @@ function applyLoad(data){
   S.ops=data.ops||{activeOps:[],nextRun:{}};
   S.achievements=data.achievements||{};
   S.stats=data.stats||{};
+  S.charStats={neural_buffer:0,reflex:0,stealth:0,integrity:0,trace_resist:0,intrusion:0,...(data.charStats||{})};
   S.mesh=data.mesh||null;
   // Always wipe cached layouts on load — they regenerate deterministically
   if(S.mesh?.visitedNets){
     S.mesh.visitedNets.forEach(ns=>{
       ns.layout = null;
       ns.layoutVersion = null;
-      // Wipe companies if they lack the key field (pre-v0.5 saves)
+      // Wipe companies if they lack the key field (pre-v0.5.4 saves)
       const hasKeys = Object.values(ns.companies||{}).flat().every(c=>c.key);
       if(!hasKeys) ns.companies = null;
     });
@@ -152,12 +153,13 @@ function titleContinue(slot){
   _autoSlot=slot;
   loadFromSlot(slot);
   hideTitle();
-  // Show home screen — it hides game-layout and shows home
   setTimeout(()=>{
     const gameEl=document.getElementById('game-layout');
     if(gameEl) gameEl.style.display='none';
     if(typeof showHomeScreen==='function'){ showHomeScreen(); }
     if(typeof renderHomeScreen==='function'){ renderHomeScreen(); }
+    // Load autorun pref after everything is rendered
+    if(typeof loadAutoRunPref==='function') loadAutoRunPref();
   }, 650);
 }
 
@@ -221,7 +223,7 @@ function titleStartNew(overwriteSlot){
   _autoSlot=slot;
   if(!S.mesh) S.mesh = (typeof mkMeshState==='function')?mkMeshState():null;
   if(!S.world) S.world = (typeof mkWorldState==='function')?mkWorldState():null;
-  addLog('▶ NEW GAME — MESH OS v0.5','li');
+  addLog('▶ NEW GAME — MESH OS v0.5.4','li');
   addLog('"All the nets that ever were, are, or will be make up the Mesh"','li');
   generateBoard();renderAll();
   hideTitle();
@@ -230,6 +232,7 @@ function titleStartNew(overwriteSlot){
     if(gameEl) gameEl.style.display='none';
     if(typeof showHomeScreen==='function'){ showHomeScreen(); }
     if(typeof renderHomeScreen==='function'){ renderHomeScreen(); }
+    if(typeof loadAutoRunPref==='function') loadAutoRunPref();
   }, 650);
 }
 
@@ -280,7 +283,7 @@ function startNewGame(){
   S.integrity=maxInt();
   ['gen','corp','crim','anarch'].forEach(f=>initShop(f));
   S.selectedBlueprint=null;
-  addLog('▶ NEW GAME — MESH OS v0.5','li');addLog('Select contracts to begin','li');
+  addLog('▶ NEW GAME — MESH OS v0.5.4','li');addLog('Select contracts to begin','li');
   generateBoard();renderAll();showTab('run');
   startAutoRunCountdown();
 }

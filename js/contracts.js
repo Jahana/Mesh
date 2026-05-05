@@ -160,8 +160,11 @@ function genContract(level,tier,forceFlavor,forceSubfac,forceCompany){
   }
 
   const credScale=(1+tier*0.3)*(fd.credMult||1.0);
+  // In a net: boost cred reward with mesh distance
+  const meshDistScale = (S.mesh?.currentNet && typeof meshDistanceCurrent==='function')
+    ? (1 + meshDistanceCurrent() * 0.04) : 1;
   const repScale=fd.repMult||1.0;
-  const baseCred=Math.floor(diff*rnd(40,70)*count*credScale);
+  const baseCred=Math.floor(diff*rnd(40,70)*count*credScale*(typeof meshDistScale!=='undefined'?meshDistScale:1));
   const baseXP=Math.floor(diff*25*(1+Math.floor(tier/3))*repScale);
 
   // Conditions
@@ -247,6 +250,7 @@ function launchRun(){
   if(S.trace>0)addLog(`◎ Trace carry: ${S.trace}% from last run`,'lw');
   S.mapped=false;S.combat=null;
   S.tick=0;S.paused=false;S.contractTimers={};S._sootheCd={};
+  S._runStartTime=Date.now();
   // Keep player speed preference — only reset if it was paused
   if(S.speed===0)S.speed=1;
   // Clear any backdoors from previous run (only OPS backdoor_plant sets a new one below)
@@ -341,7 +345,12 @@ function launchRun(){
   S.running=true;_runLocked=true;
   document.getElementById('alert-badge').style.display='';
   const jb=document.getElementById('jackout-btn');if(jb)jb.style.display='';
-  const gl=document.getElementById('grid-section-label');if(gl)gl.textContent='ACTIVE RUN';
+  const gl=document.getElementById('grid-section-label');
+  if(gl){
+    const nk=S.mesh?.currentNet?(typeof netKey==='function'?netKey(S.mesh.currentNet.x,S.mesh.currentNet.y):'?'):'LOCAL';
+    const nodeAddr_=S.mesh?.lastNodeAddr||'??';
+    gl.textContent=`${nk}  ·  NODE ${nodeAddr_}`;
+  }
   addLog(`▶ RUN T${tier} · ${nr}×${nc} · INT ${S.integrity}`,'li');
   // Disable install/eject on locked screens
   updateLockedBanner();
@@ -533,19 +542,34 @@ function finishRun(success,reason='complete'){
       if(ns){
           markNodeComplete(S.mesh.activeNodeAddr);
           addLog(`◈ Node ${S.mesh.activeNodeAddr} complete`,'lg');
-          // Check for Uplift: node FF in net 0:0
-          const isOriginNet = S.mesh.currentNet.x===0 && S.mesh.currentNet.y===0;
-          if(S.mesh.activeNodeAddr==='FF' && isOriginNet && !S.mesh.traversalUnlocked){
-            S.mesh.traversalUnlocked = true;
-            addLog('','li');
-            addLog('◈ ◈ ◈ UPLIFT GRANTED ◈ ◈ ◈','lp');
-            addLog('Mesh traversal unlocked. The coordinate space opens before you.','li');
-            addLog('Net 0:0 is behind you. The rest of the Mesh awaits.','li');
-            addLog('','li');
-            // Show Mesh tab
-            const meshTab = document.getElementById('tab-mesh');
-            if(meshTab) meshTab.style.display='';
-            if(typeof autoSave==='function') autoSave();
+          // Check for FF completion — triggers uplift/travel
+          if(S.mesh.activeNodeAddr==='FF'){
+            const isOriginNet = S.mesh.currentNet.x===0 && S.mesh.currentNet.y===0;
+            // First-time uplift (net 0:0 only)
+            if(isOriginNet && !S.mesh.traversalUnlocked){
+              S.mesh.traversalUnlocked = true;
+              addLog('','li');
+              addLog('◈ ◈ ◈ UPLIFT GRANTED ◈ ◈ ◈','lp');
+              addLog('Mesh traversal unlocked. The coordinate space opens before you.','li');
+              addLog('Net 0:0 is behind you. The rest of the Mesh awaits.','li');
+              addLog('','li');
+              const meshTab = document.getElementById('tab-mesh');
+              if(meshTab) meshTab.style.display='';
+              try{localStorage.setItem('mesh_autorun_unlocked','1');localStorage.setItem('mesh_autorun','1');}catch(e){}
+              if(typeof toggleAutoRun==='function'&&!_autoRunEnabled) toggleAutoRun();
+              const autoBtn=document.getElementById('autorun-toggle-btn');
+              if(autoBtn) autoBtn.style.display='';
+              if(typeof autoSave==='function') autoSave();
+            }
+            // If autorun is on and traversal is unlocked, auto-travel to next uncompleted net
+            if(_autoRunEnabled && S.mesh.traversalUnlocked){
+              addLog('◈ NET CLEARED — Uplifting to next net…','lp');
+              S._pendingUpliftTravel = true;
+              // Show lore briefing for this depth tier
+              const curDist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+              S._pendingUpliftBriefing = true;
+              if(typeof showUpliftBriefing==='function') setTimeout(()=>{ S._pendingUpliftBriefing=false; showUpliftBriefing(curDist, false); }, 400);
+            }
           }
         }
     }
@@ -554,24 +578,22 @@ function finishRun(success,reason='complete'){
     S.mesh.activeNodeAddr = null;
   }
   generateBoard();renderTopBar();autoSave();
-  // Return to net layer view after a node run
+  // Update net tab if active
+  if(document.getElementById('tab-net-content')?.classList.contains('active')&&typeof renderNetTab==='function') renderNetTab();
+  // Show run summary, then return to net map (or board for non-net runs)
+  S.running = false;
+  S.combat  = null;
   if(S.mesh?.currentNet){
-    S.running = false;
-    S.combat  = null;
-    // Clear inline display override so run panel yields to net view
     const runPanel = document.getElementById('tab-run-content');
     if(runPanel) runPanel.style.removeProperty('display');
-    // Dismiss run summary overlay if showing
-    const sumEl = document.getElementById('run-summary');
-    if(sumEl) sumEl.style.display = 'none';
-    // Re-render the net map with the newly completed node highlighted
-    setTimeout(()=>{
-      if(typeof showTab==='function') showTab('run');
-      if(typeof renderNetView==='function') renderNetView();
-    }, 300);
+    // If uplift briefing will show (FF just completed), skip run summary
+    if(!S._pendingUpliftBriefing){
+      showRunSummary();
+    }
+    if(typeof startAutoRunCountdown==='function') startAutoRunCountdown();
   } else {
     showRunSummary();
-    if(typeof startAutoRunCountdown==='function')startAutoRunCountdown();
+    if(typeof startAutoRunCountdown==='function') startAutoRunCountdown();
   }
 }
 

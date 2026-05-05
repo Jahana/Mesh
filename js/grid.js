@@ -345,6 +345,7 @@ function handleNodeArrival(cell){
       cell.ioBlocked=true;
       cell.copSilenced=true;
       addLog(`⬟ COP [${cell.r},${cell.c}]: I/O blocked — pings silenced`,'lg');
+      S._copsSilencedThisRun=(S._copsSilencedThisRun||0)+1;
       // Hunter may already be en route
       if(Math.random()<0.3){
         addLog('⬟ COP: Hunter already dispatched!','lb');
@@ -629,7 +630,8 @@ function tickCOPPings(){
     addPressure(pingAmount);
     // Also add small trace at Red alert
     if(S.alert>=2){
-      const traceAdd=activeCOPs*1;
+      const _tr2=typeof charTraceResist==='function'?charTraceResist():0;
+      const traceAdd=Math.max(0,Math.round(activeCOPs*(1-_tr2/100)));
       S.trace=Math.min(100,S.trace+traceAdd);
     }
     if(activeCOPs>=2||(S.alert>=1&&S.alertPressure%40<6))addLog(`⬟ ${activeCOPs} COP${activeCOPs>1?'s':''}: +${pingAmount} pressure`,'lw');
