@@ -1,4 +1,4 @@
-// MESH v0.6.3 — glitch.js
+// MESH v0.7.0 — glitch.js
 // Glitch Zone Government System + Visual Overlay
 // ================================================================
 
@@ -138,205 +138,434 @@ function govRepTier(govIndex){
 }
 
 
-// ── GLITCH VISUAL OVERLAY ─────────────────────────────────────────────────
-// Injects CSS animations and DOM elements that intensify with mesh distance.
-// Runs continuously when in the glitch zone (dist 16-63).
+// ── GLITCH VISUAL OVERLAY v2 ─────────────────────────────────────────────
+// Approach: single canvas overlay running a continuous RAF loop,
+// plus DOM row-displacement effects on a JS timer.
+// Canvas is always present when in glitch zone; drawn every frame.
 
 let _glitchOverlayEl = null;
 let _glitchStyleEl   = null;
-let _glitchAnimFrame = null;
-let _glitchLastDist  = -1;
+let _glitchCanvas    = null;
+let _glitchCtx       = null;
+let _glitchRafId     = null;
+let _glitchCellTimer = null;
+let _glitchActive    = false;
 
+// ── SEED ──────────────────────────────────────────────────────────────────
+let _gs = 1;
+function _gr(){ _gs = (_gs * 1664525 + 1013904223) >>> 0; return _gs / 4294967296; }
+function _gseed(){ _gs = ((Date.now() * 6364136) ^ (_gs * 1013904223)) >>> 0 || 1; }
+
+// ── CSS (injected once) ──────────────────────────────────────────────────
 function initGlitchOverlay(){
   if(_glitchStyleEl) return;
-  const style = document.createElement('style');
-  style.id = 'glitch-style';
-  style.textContent = `
+  const s = document.createElement('style');
+  s.textContent = `
+    #glitch-canvas {
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      pointer-events:none;z-index:9000;
+    }
     #glitch-overlay {
-      position: fixed; inset: 0; pointer-events: none; z-index: 8000;
-      mix-blend-mode: screen;
+      position:fixed;inset:0;pointer-events:none;z-index:8990;
     }
     #glitch-overlay .gl-scanlines {
-      position: absolute; inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        transparent 0px, transparent 3px,
-        rgba(0,255,80,0.03) 3px, rgba(0,255,80,0.03) 4px
+      position:absolute;inset:0;
+      background:repeating-linear-gradient(
+        0deg,transparent 0,transparent 2px,rgba(0,255,60,.028) 2px,rgba(0,255,60,.028) 3px
       );
     }
-    @keyframes glitch-hscan {
-      0%,100% { transform: translateY(0); opacity: 0; }
-      5%       { transform: translateY(-3px); opacity: 1; }
-      10%      { transform: translateY(2px); opacity: 1; }
-      15%      { transform: translateY(0); opacity: 0; }
-    }
-    @keyframes glitch-vshift {
-      0%,100% { clip-path: inset(0 0 100% 0); opacity: 0; }
-      5%      { clip-path: inset(20% 0 70% 0); opacity: 1; }
-      10%     { clip-path: inset(60% 0 20% 0); opacity: 0.7; }
-      15%,100%{ clip-path: inset(0 0 100% 0); opacity: 0; }
-    }
-    @keyframes glitch-flash {
-      0%,100% { opacity: 0; }
-      50%     { opacity: 1; }
+    #glitch-overlay .gl-vignette {
+      position:absolute;inset:0;
+      background:radial-gradient(ellipse at 50% 50%,transparent 30%,rgba(0,8,0,.7) 100%);
     }
     #glitch-overlay .gl-hbar {
-      position: absolute; left: 0; right: 0; height: 4px;
-      background: rgba(0,255,120,0.15);
-      animation: glitch-hscan linear infinite;
+      position:absolute;left:0;right:0;height:3px;
+      background:linear-gradient(90deg,transparent,rgba(0,255,100,.3),transparent);
+      animation:glHbar 3s linear infinite;
     }
-    #glitch-overlay .gl-ghost {
-      position: absolute; inset: 0;
-      background: transparent;
-      animation: glitch-vshift linear infinite;
-      box-shadow: inset 0 0 0 1px rgba(0,255,80,0.08);
+    @keyframes glHbar {
+      0%,100%{opacity:0;transform:translateY(0)} 10%{opacity:1} 15%{opacity:1;transform:translateY(4px)} 20%{opacity:0}
     }
-    #glitch-overlay .gl-rgb-r {
-      position: absolute; inset: 0; pointer-events: none;
-      mix-blend-mode: screen; opacity: 0;
-      background: radial-gradient(ellipse at 30% 40%, rgba(255,0,0,0.04) 0%, transparent 60%);
-      animation: glitch-flash linear infinite;
-    }
-    #glitch-overlay .gl-rgb-b {
-      position: absolute; inset: 0; pointer-events: none;
-      mix-blend-mode: screen; opacity: 0;
-      background: radial-gradient(ellipse at 70% 60%, rgba(0,80,255,0.04) 0%, transparent 60%);
-      animation: glitch-flash linear infinite;
-    }
-    #glitch-overlay .gl-vignette {
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,20,0,0.4) 100%);
-    }
-    .glitch-cell-jitter {
-      animation: cell-jitter 0.1s steps(2) infinite !important;
-    }
-    @keyframes cell-jitter {
-      0%   { transform: translateX(0); }
-      33%  { transform: translateX(1px); }
-      66%  { transform: translateX(-1px); }
-      100% { transform: translateX(0); }
-    }
-    .glitch-cell-desaturate {
-      filter: saturate(0.1) brightness(1.4) !important;
-      transition: filter 0.05s;
-    }
+    .glitch-row-shift { transition:none !important; }
+    .glitch-cell-invert { filter:invert(.9) hue-rotate(100deg) !important; }
+    .glitch-cell-desat  { filter:saturate(0) brightness(1.8) !important; }
   `;
-  document.head.appendChild(style);
-  _glitchStyleEl = style;
+  document.head.appendChild(s);
+  _glitchStyleEl = s;
 }
 
-function updateGlitchOverlay(){
-  const dist = typeof meshDistanceCurrent === 'function' ? meshDistanceCurrent() : 0;
-  if(dist === _glitchLastDist) return;
-  _glitchLastDist = dist;
+// ── CANVAS DRAW ───────────────────────────────────────────────────────────
+function _drawGlitch(intensity){
+  if(!_glitchCtx || !_glitchCanvas) return;
+  const W = _glitchCanvas.width, H = _glitchCanvas.height;
+  const ctx = _glitchCtx;
+  _gseed();
+  ctx.clearRect(0,0,W,H);
 
-  if(dist < 16 || dist >= 64){
-    // Remove overlay outside glitch zone
-    if(_glitchOverlayEl){ _glitchOverlayEl.remove(); _glitchOverlayEl = null; }
-    return;
+
+  // ── 1. Horizontal slice offsets — jagged VHS bands ──────────────────
+  {
+    const slices = Math.floor(3 + intensity * 15);
+    for(let s = 0; s < slices; s++){
+      if(_gr() > 0.6) continue;
+      const y  = Math.floor(_gr() * H);
+      const h  = 1 + Math.floor(_gr() * 8);
+      const dx = Math.floor((_gr() - 0.5) * intensity * 80);
+      if(Math.abs(dx) < 2) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.5 + intensity * 0.4;
+      ctx.fillStyle = `rgba(0,${180+Math.floor(_gr()*75)},${60+Math.floor(_gr()*60)},1)`;
+      ctx.fillRect(dx, y, W, h);
+      ctx.restore();
+    }
   }
 
+  // ── 2. Digital snow ────────────────────────────────────────────────────
+  {
+    const count = Math.floor(W * H * intensity * intensity * 0.02);
+    ctx.save();
+    for(let i = 0; i < count; i++){
+      const px = Math.floor(_gr() * W);
+      const py = Math.floor(_gr() * H);
+      const b  = 120 + Math.floor(_gr() * 135);
+      ctx.globalAlpha = 0.6 + _gr() * 0.4;
+      ctx.fillStyle = _gr() < 0.65
+        ? `rgb(40,${b},${Math.floor(b*0.4)})`
+        : `rgb(${b},${b},${b})`;
+      ctx.fillRect(px, py, _gr() < 0.15 ? 2 : 1, 1);
+    }
+    ctx.restore();
+  }
+
+  // ── 3. Snow patch clusters ─────────────────────────────────────────────
+  {
+    const patches = Math.floor(intensity * intensity * 6);
+    for(let p = 0; p < patches; p++){
+      const px = Math.floor(_gr() * (W - 100));
+      const py = Math.floor(_gr() * (H - 10));
+      const pw = 15 + Math.floor(_gr() * 90);
+      const ph = 2  + Math.floor(_gr() * 5);
+      ctx.save();
+      ctx.globalAlpha = 0.35 + intensity * 0.5;
+      for(let i = 0; i < pw; i += 2){
+        if(_gr() < 0.4) continue;
+        const b = 80 + Math.floor(_gr() * 175);
+        ctx.fillStyle = `rgb(20,${b},${Math.floor(b*0.4)})`;
+        ctx.fillRect(px + i, py, 2, ph);
+      }
+      ctx.restore();
+    }
+  }
+
+  // ── 4. Full-width displacement lines ────────────────────────────────────
+  {
+    const lines = Math.floor(intensity * intensity * 12);
+    for(let l = 0; l < lines; l++){
+      const ly  = Math.floor(_gr() * H);
+      const lh  = 1 + Math.floor(_gr() * 3);
+      const ldx = Math.floor((_gr() - 0.5) * intensity * 60);
+      ctx.save();
+      ctx.globalAlpha = 0.25 + intensity * 0.5;
+      ctx.fillStyle = `rgba(0,${180+Math.floor(_gr()*75)},60,1)`;
+      ctx.fillRect(ldx, ly, W, lh);
+      ctx.restore();
+    }
+  }
+
+  // ── 5. Vertical tear lines ─────────────────────────────────────────────
+  if(_gr() < intensity * 0.4){
+    const tx = Math.floor(_gr() * W);
+    const ty = Math.floor(_gr() * H * 0.6);
+    const th = 40 + Math.floor(_gr() * H * 0.4);
+    ctx.save();
+    ctx.globalAlpha = 0.6 + intensity * 0.35;
+    ctx.strokeStyle = `rgba(80,255,140,0.9)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    for(let y = ty; y < ty + th; y += 2){
+      ctx.lineTo(tx + (_gr() - 0.5) * 8, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── 6. RGB channel split ───────────────────────────────────────────────
+  if(intensity > 0.2 && _gr() < intensity * 0.5){
+    const sy  = Math.floor(_gr() * H);
+    const sh  = 3 + Math.floor(_gr() * 20);
+    const rdx = Math.floor((_gr() - 0.5) * intensity * 30);
+    const bdx = Math.floor((_gr() - 0.5) * intensity * 24);
+    ctx.save();
+    ctx.globalAlpha = 0.3 + intensity * 0.4;
+    ctx.fillStyle = 'rgba(255,40,40,0.9)';
+    ctx.fillRect(rdx, sy, W, sh);
+    ctx.fillStyle = 'rgba(40,40,255,0.9)';
+    ctx.fillRect(bdx, sy + sh, W, sh);
+    ctx.restore();
+  }
+
+  // ── 7. Full-screen flash ───────────────────────────────────────────────
+  if(intensity > 0.65 && _gr() < 0.04){
+    ctx.save();
+    ctx.globalAlpha = 0.12 + _gr() * 0.15;
+    ctx.fillStyle = 'rgba(0,255,80,1)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  // 1. Horizontal slice offsets — glowing bands that displace across the screen
+  if(intensity > 0.05){
+    const numSlices = Math.floor(3 + intensity * 18);
+    const sliceH    = Math.ceil(H / numSlices);
+    for(let s = 0; s < numSlices; s++){
+      if(_gr() > intensity * 0.65) continue;
+      const y   = s * sliceH;
+      const h   = 1 + Math.floor(_gr() * Math.max(2, sliceH * 0.5));
+      const dx  = Math.floor((_gr() - .5) * intensity * 60);
+      if(Math.abs(dx) < 2) continue;
+      // Draw a bright displaced horizontal bar
+      ctx.save();
+      ctx.globalAlpha = 0.18 + intensity * 0.3;
+      const g = ctx.createLinearGradient(dx, 0, dx+W, 0);
+      g.addColorStop(0,   'rgba(0,255,80,0)');
+      g.addColorStop(0.1, `rgba(0,${200+Math.floor(_gr()*55)},${60+Math.floor(_gr()*80)},0.9)`);
+      g.addColorStop(0.9, `rgba(0,${200+Math.floor(_gr()*55)},${60+Math.floor(_gr()*80)},0.9)`);
+      g.addColorStop(1,   'rgba(0,255,80,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(dx, y, W, h);
+      ctx.restore();
+    }
+  }
+
+  // 2. Digital snow — scattered pixels
+  {
+    const density = intensity * intensity * 0.012;
+    const count   = Math.floor(W * H * density);
+    ctx.save();
+    for(let i = 0; i < count; i++){
+      const px = Math.floor(_gr() * W);
+      const py = Math.floor(_gr() * H);
+      const b  = 80 + Math.floor(_gr() * 175);
+      ctx.globalAlpha = 0.5 + _gr() * 0.5;
+      ctx.fillStyle   = _gr() < .65
+        ? `rgb(40,${b},${Math.floor(b*.5)})`  // green
+        : `rgb(${b},${b},${b})`;              // white
+      ctx.fillRect(px, py, 1 + (_gr()<.2?1:0), 1);
+    }
+    ctx.restore();
+  }
+
+  // 3. Snow patch clusters
+  {
+    const patches = Math.floor(intensity * intensity * 5);
+    for(let p = 0; p < patches; p++){
+      const px = Math.floor(_gr() * (W - 120));
+      const py = Math.floor(_gr() * (H - 12));
+      const pw = 20 + Math.floor(_gr() * 100);
+      const ph = 2  + Math.floor(_gr() * 6);
+      ctx.save();
+      ctx.globalAlpha = .25 + intensity * .4;
+      for(let i = 0; i < pw; i += 2){
+        if(_gr() < .45) continue;
+        const b = 60 + Math.floor(_gr() * 195);
+        ctx.fillStyle = `rgb(20,${b},${Math.floor(b*.45)})`;
+        ctx.fillRect(px+i, py, 2, ph);
+      }
+      ctx.restore();
+    }
+  }
+
+  // 4. Horizontal displacement lines (full-width, shifted)
+  {
+    const lines = Math.floor(intensity * intensity * 10);
+    for(let l = 0; l < lines; l++){
+      const ly  = Math.floor(_gr() * H);
+      const lh  = 1 + Math.floor(_gr() * 3);
+      const ldx = Math.floor((_gr()-.5) * intensity * 50);
+      ctx.save();
+      ctx.globalAlpha = .15 + intensity * .25;
+      ctx.fillStyle   = `rgba(0,${200+Math.floor(_gr()*55)},80,1)`;
+      ctx.fillRect(ldx, ly, W, lh);
+      ctx.restore();
+    }
+  }
+
+  // 5. Vertical tear lines
+  if(_gr() < intensity * 0.3){
+    const tx = Math.floor(_gr() * W);
+    const ty = Math.floor(_gr() * H * .6);
+    const th = 30 + Math.floor(_gr() * H * .35);
+    ctx.save();
+    ctx.globalAlpha = .5 + intensity * .4;
+    ctx.strokeStyle = `rgba(60,255,120,${.6+_gr()*.4})`;
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    for(let y = ty; y < ty+th; y += 3){
+      ctx.lineTo(tx + (_gr()-.5)*6, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 6. RGB channel split
+  if(intensity > 0.25 && _gr() < intensity * .45){
+    const sy  = Math.floor(_gr() * H);
+    const sh  = 3 + Math.floor(_gr() * 18);
+    const rdx = Math.floor((_gr()-.5) * intensity * 24);
+    const bdx = Math.floor((_gr()-.5) * intensity * 18);
+    ctx.save();
+    ctx.globalAlpha = .2 + intensity * .25;
+    ctx.fillStyle = 'rgba(255,40,40,.8)';
+    ctx.fillRect(rdx, sy, W, sh);
+    ctx.fillStyle = 'rgba(40,40,255,.8)';
+    ctx.fillRect(bdx, sy+sh, W, sh);
+    ctx.restore();
+  }
+
+  // 7. Full-screen flash (rare, high intensity only)
+  if(intensity > .7 && _gr() < .03){
+    ctx.save();
+    ctx.globalAlpha = .08 + _gr() * .12;
+    ctx.fillStyle   = 'rgba(0,255,80,1)';
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
+}
+
+// ── RAF LOOP ──────────────────────────────────────────────────────────────
+function _rafLoop(){
+  if(!_glitchActive){ _glitchRafId = null; return; }
+  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist < 16 || dist >= 64){ _stopGlitch(); return; }
+
+  const t = Math.min(1, (dist-16)/47);
+  const intensity = t * t;
+
+  // Resize canvas if window changed
+  if(_glitchCanvas &&
+     (_glitchCanvas.width  !== window.innerWidth ||
+      _glitchCanvas.height !== window.innerHeight)){
+    _glitchCanvas.width  = window.innerWidth;
+    _glitchCanvas.height = window.innerHeight;
+  }
+
+  _drawGlitch(intensity);
+  _glitchRafId = requestAnimationFrame(_rafLoop);
+}
+
+// ── START / STOP ──────────────────────────────────────────────────────────
+function _startGlitch(intensity){
   initGlitchOverlay();
 
-  // Intensity: 0.0 at dist 16, 1.0 at dist 63
-  const t = Math.min(1, (dist - 16) / 47);
-  // Probability of active glitch effects: low at t=0, high at t=1
-  const intensity = t * t; // quadratic — slow start, sharp ramp
-
+  // CSS overlay
   if(!_glitchOverlayEl){
     _glitchOverlayEl = document.createElement('div');
     _glitchOverlayEl.id = 'glitch-overlay';
-    _glitchOverlayEl.innerHTML = `
-      <div class="gl-vignette"></div>
-      <div class="gl-scanlines"></div>
-      <div class="gl-ghost" id="gl-ghost"></div>
-      <div class="gl-hbar" id="gl-hbar"></div>
-      <div class="gl-rgb-r" id="gl-rgb-r"></div>
-      <div class="gl-rgb-b" id="gl-rgb-b"></div>
-    `;
+    _glitchOverlayEl.innerHTML =
+      '<div class="gl-vignette"></div>' +
+      '<div class="gl-scanlines"></div>' +
+      '<div class="gl-hbar"></div>';
     document.body.appendChild(_glitchOverlayEl);
   }
+  const sl = _glitchOverlayEl.querySelector('.gl-scanlines');
+  if(sl) sl.style.opacity = (.15 + intensity * .85).toFixed(2);
+  const vi = _glitchOverlayEl.querySelector('.gl-vignette');
+  if(vi) vi.style.opacity = (.1 + intensity * .7).toFixed(2);
+  const hb = _glitchOverlayEl.querySelector('.gl-hbar');
+  if(hb){ hb.style.height=(2+intensity*7)+'px'; hb.style.top=(10+Math.random()*75)+'%'; }
 
-  // Scanline opacity
-  const scanlines = _glitchOverlayEl.querySelector('.gl-scanlines');
-  if(scanlines) scanlines.style.opacity = (0.3 + intensity * 0.7).toFixed(2);
-
-  // Vignette intensity
-  const vignette = _glitchOverlayEl.querySelector('.gl-vignette');
-  if(vignette) vignette.style.opacity = (intensity * 0.8).toFixed(2);
-
-  // Horizontal bar — frequency and speed scale with intensity
-  const hbar = document.getElementById('gl-hbar');
-  if(hbar){
-    const periodSec = Math.max(0.8, 8 - intensity * 6.5); // 8s at t=0 → 1.5s at t=1
-    hbar.style.animationDuration = periodSec.toFixed(1) + 's';
-    hbar.style.top = Math.floor(Math.random() * 80 + 10) + '%';
-    hbar.style.opacity = (0.2 + intensity * 0.6).toFixed(2);
-    hbar.style.height = Math.floor(2 + intensity * 6) + 'px';
+  // Canvas
+  if(!_glitchCanvas){
+    _glitchCanvas = document.createElement('canvas');
+    _glitchCanvas.id = 'glitch-canvas';
+    _glitchCanvas.width  = window.innerWidth;
+    _glitchCanvas.height = window.innerHeight;
+    document.body.appendChild(_glitchCanvas);
+    _glitchCtx = _glitchCanvas.getContext('2d');
   }
 
-  // Ghost vertical shift — period and visibility
-  const ghost = document.getElementById('gl-ghost');
-  if(ghost){
-    const gPeriod = Math.max(1.5, 12 - intensity * 9);
-    ghost.style.animationDuration = gPeriod.toFixed(1) + 's';
-    ghost.style.opacity = (intensity * 0.5).toFixed(2);
-  }
-
-  // RGB aberration — only at higher intensity
-  const rgbR = document.getElementById('gl-rgb-r');
-  const rgbB = document.getElementById('gl-rgb-b');
-  if(rgbR && intensity > 0.3){
-    const abPeriod = Math.max(0.5, 4 - intensity * 3);
-    rgbR.style.animationDuration = abPeriod.toFixed(1) + 's';
-    rgbB.style.animationDuration = (abPeriod * 1.3).toFixed(1) + 's';
-    rgbR.style.opacity = (intensity * 0.6).toFixed(2);
-    rgbB.style.opacity = (intensity * 0.5).toFixed(2);
-  }
-
-  // Phosphor tint on the main content area
+  // Phosphor tint on main
   const mainEl = document.getElementById('main') || document.getElementById('app');
-  if(mainEl && intensity > 0.1){
-    const greenTint = Math.floor(intensity * 15);
-    mainEl.style.filter = `hue-rotate(-${greenTint}deg) saturate(${1 - intensity * 0.3})`;
-  } else if(mainEl){
-    mainEl.style.filter = '';
+  if(mainEl){
+    const tint = Math.floor(intensity * 20);
+    const sat  = Math.max(.55, 1 - intensity * .45);
+    mainEl.style.filter = `hue-rotate(-${tint}deg) saturate(${sat})`;
   }
+
+  // Start RAF
+  _glitchActive = true;
+  if(!_glitchRafId) _glitchRafId = requestAnimationFrame(_rafLoop);
 }
 
-// Random cell-level jitter — fires at intervals, affects a few grid cells briefly
-let _glitchCellTimer = null;
-function tickGlitchCells(){
-  const dist = typeof meshDistanceCurrent === 'function' ? meshDistanceCurrent() : 0;
-  if(dist < 16 || dist >= 64 || !S.running){ clearTimeout(_glitchCellTimer); return; }
-  const t = Math.min(1, (dist - 16) / 47);
-  const intensity = t * t;
+function _stopGlitch(){
+  _glitchActive = false;
+  if(_glitchRafId){ cancelAnimationFrame(_glitchRafId); _glitchRafId = null; }
+  if(_glitchOverlayEl){ _glitchOverlayEl.remove(); _glitchOverlayEl = null; }
+  if(_glitchCanvas){ _glitchCanvas.remove(); _glitchCanvas = null; _glitchCtx = null; }
+  const mainEl = document.getElementById('main') || document.getElementById('app');
+  if(mainEl) mainEl.style.filter = '';
+}
 
-  // Jitter a random grid cell briefly
-  if(Math.random() < intensity * 0.4){
+function updateGlitchOverlay(){
+  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist < 16 || dist >= 64){ _stopGlitch(); return; }
+  const t = Math.min(1,(dist-16)/47);
+  _startGlitch(t * t);
+}
+
+// ── CELL-LEVEL EFFECTS ────────────────────────────────────────────────────
+
+function tickGlitchCells(){
+  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist < 16 || dist >= 64 || !S.running){ stopGlitchCellTick(); return; }
+  const intensity = Math.pow(Math.min(1,(dist-16)/47), 2);
+
+  // Jitter individual cells
+  if(Math.random() < intensity * 0.55){
     const cells = document.querySelectorAll('.grid-cell');
     if(cells.length){
-      const cell = cells[Math.floor(Math.random() * cells.length)];
-      cell.classList.add('glitch-cell-jitter');
-      setTimeout(() => cell.classList.remove('glitch-cell-jitter'), 80 + Math.random() * 120);
+      const n = 1 + Math.floor(intensity * 4);
+      for(let i=0;i<n;i++){
+        const cell = cells[Math.floor(Math.random()*cells.length)];
+        const dx = Math.floor((Math.random()-.5)*intensity*6)+'px';
+        const dy = Math.floor((Math.random()-.5)*intensity*3)+'px';
+        cell.style.transform = `translate(${dx},${dy})`;
+        const c2 = cell;
+        setTimeout(()=>{ c2.style.transform=''; }, 50+Math.random()*80);
+      }
     }
   }
 
-  // Occasional full-row desaturate flash at high intensity
-  if(intensity > 0.6 && Math.random() < intensity * 0.08){
+  // Row desaturate/invert
+  if(intensity > 0.35 && Math.random() < intensity * 0.14){
     const rows = document.querySelectorAll('.grid-row');
     if(rows.length){
-      const row = rows[Math.floor(Math.random() * rows.length)];
-      row.querySelectorAll('.grid-cell').forEach(c => c.classList.add('glitch-cell-desaturate'));
-      setTimeout(() => {
-        row.querySelectorAll('.grid-cell').forEach(c => c.classList.remove('glitch-cell-desaturate'));
-      }, 60 + Math.random() * 100);
+      const row = rows[Math.floor(Math.random()*rows.length)];
+      const cls = (intensity > 0.65 && Math.random() < .35) ? 'glitch-cell-invert' : 'glitch-cell-desat';
+      row.querySelectorAll('.grid-cell').forEach(c=>c.classList.add(cls));
+      setTimeout(()=>row.querySelectorAll('.grid-cell').forEach(c=>c.classList.remove(cls)), 35+Math.random()*70);
     }
   }
 
-  // Reschedule — shorter interval at higher intensity
-  const msDelay = Math.max(120, 600 - intensity * 480);
-  _glitchCellTimer = setTimeout(tickGlitchCells, msDelay);
+  // Multi-row horizontal displacement
+  if(intensity > 0.6 && Math.random() < intensity * 0.10){
+    const rows = document.querySelectorAll('.grid-row');
+    if(rows.length > 2){
+      const start = Math.floor(Math.random()*(rows.length-2));
+      const count = 1 + Math.floor(Math.random()*3);
+      const shift = Math.floor((Math.random()-.5)*intensity*28)+'px';
+      for(let r=start; r<Math.min(rows.length,start+count); r++){
+        rows[r].style.transform = `translateX(${shift})`;
+        const row = rows[r];
+        setTimeout(()=>{ row.style.transform=''; }, 40+Math.random()*90);
+      }
+    }
+  }
+
+  const delay = Math.max(60, 480 - intensity*420);
+  _glitchCellTimer = setTimeout(tickGlitchCells, delay);
 }
 
 function startGlitchCellTick(){
@@ -349,8 +578,9 @@ function startGlitchCellTick(){
 function stopGlitchCellTick(){
   clearTimeout(_glitchCellTimer);
   _glitchCellTimer = null;
-  // Remove any lingering jitter/desaturate classes
-  document.querySelectorAll('.glitch-cell-jitter,.glitch-cell-desaturate').forEach(el=>{
-    el.classList.remove('glitch-cell-jitter','glitch-cell-desaturate');
+  document.querySelectorAll('.glitch-cell-invert,.glitch-cell-desat').forEach(el=>{
+    el.classList.remove('glitch-cell-invert','glitch-cell-desat');
+    el.style.transform='';
   });
+  document.querySelectorAll('.grid-row').forEach(r=>{ r.style.transform=''; });
 }

@@ -34,8 +34,8 @@ function queueCellAction(r, c){
     const nodeTicks=typeof NODE_INTERACT_TICKS!=='undefined'?NODE_INTERACT_TICKS[cell.nodeType]:undefined;
     ticks = (nodeTicks!=null && nodeTicks>0) ? nodeTicks : moveTicks();
   }
-  // CPU overload reduces action tick cost
-  const mod=S._actionTickMod||0;
+  // CPU overload + crafted deck CPU components reduce action tick cost
+  const mod=(S._actionTickMod||0)+(typeof getDeckCraftStat==='function'?getDeckCraftStat('actionTick'):0);
   ticks=Math.max(4, ticks+mod);
   S.actionQueue.push({ticksLeft:ticks, ticksTotal:ticks, cellR:r, cellC:c, type:'cell'});
 }
@@ -91,7 +91,7 @@ function tryStoreFile(f, sourceLabel){
   // Try to store file in deckRAM. If full, evict least valuable non-preloaded file
   // if the new file is more valuable. Returns true if stored.
   const val=f.credValue||0;
-  const available=S.storageMax-S.storage.length-reservedRAM();
+  const available=storageMax()-S.storage.length-reservedRAM();
   if(available>0){
     S.storage.push(f);
     if(!S.stats)S.stats={};
@@ -225,9 +225,26 @@ function resolveCellAction(r, c){
     startCombat(cell); // combat re-stalls player
     return;
   }
+  // Mobile ICE (HUNTER) — activate as a moving hunter entity
+  if(cell.ice&&BASE_ICE[cell.ice]?.mobile){
+    const _iceDef=BASE_ICE[cell.ice];
+    addLog(`☠ HUNTER ICE activated at [${cell.r},${cell.c}] — it moves!`,'lb');
+    // Store the ICE strength on the hunter for combat
+    S.hunters.push({
+      r:cell.r, c:cell.c, id:uid(),
+      type:'standard',
+      moveTick:0,
+      fromICE:true,
+      iceStr:typeof iceStr==='function'?iceStr(cell.ice,curTier()):_iceDef.baseStr,
+    });
+    cell.ice=null; // remove static ICE — it's now a hunter
+  }
   handleNodeArrival(cell);
 }
 function handleNodeArrival(cell){
+  if(S._inNodeArrival===cell.id) return; // re-entrancy guard for same cell
+  const _prevArrival=S._inNodeArrival;
+  S._inNodeArrival=cell.id;
   let handled=false;
   // Polymorph — offer swap on cell arrival if not already used this cell
   if(!cell._polymorphOffered&&S.running){
@@ -483,23 +500,28 @@ function handleNodeArrival(cell){
 
   // BLACKSITE — extreme rewards, always ICE-guarded, partially hidden
   if(cell.nodeType==='BLACKSITE'&&!cell.blacksiteDone){
-    cell.blacksiteDone=true;
     if(cell.ice){
+      // ICE still present — warn but do NOT mark done yet so reward fires after breach
       addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: ICE-locked — breach ICE first`,'lw');
     } else {
+      cell.blacksiteDone=true; // mark done only when reward is actually given
       const bsVal=Math.floor(rnd(100,300)*(0.5+curTier()*0.5));
       const f={id:uid(),type:'CORPDATA',identified:true,encrypted:false,preloaded:false,credValue:bsVal};
       tryStoreFile(f,`◼ BLACKSITE [${cell.r},${cell.c}]`);
-      // Chance to drop blueprint
       if(Math.random()<0.4) tryDropBlueprint(`BLACKSITE [${cell.r},${cell.c}]`);
-      // Sensor spike — blacksite access always triggers sensors
+      if(Math.random()<0.25&&typeof tryDropComponent==='function') tryDropComponent('blacksite');
       S._activeSensors=(S._activeSensors||0)+1;
-      addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: data extracted — sensors alerted!`,'lp');
+      addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: data extracted (+${bsVal}₵) — sensors alerted!`,'lp');
       addPressure(PRESSURE_PER_ALERT*0.5);
     }
   }
 
   // LAB — partial blueprint progress
+  // Drop crafting components occasionally from terminals
+  if(cell.nodeType==='TERMINAL'&&!cell.terminalDone){
+    cell.terminalDone=true;
+    if(Math.random()<0.08&&typeof tryDropComponent==='function') tryDropComponent('terminal');
+  }
   if(cell.nodeType==='LAB'&&!cell.labDone){
     cell.labDone=true;
     if(!S._labProgress) S._labProgress={};
@@ -513,6 +535,7 @@ function handleNodeArrival(cell){
         delete S._labProgress[bp.id];
       } else {
         addLog(`⚗ LAB [${cell.r},${cell.c}]: fragment collected — ${bp.name} ${S._labProgress[bp.id]}/2`,'lg');
+      if(Math.random()<0.3&&typeof tryDropComponent==='function') tryDropComponent('lab');
       }
     } else {
       const labCred=rnd(20,50);
@@ -593,7 +616,7 @@ function autoDoObj(cell,ct,obj){
   if(a==='collect'||a==='collect_delete'){
     if(obj.targetFile){
       // Guarantee space — evict lowest-value non-preloaded non-contract file if needed
-      if(S.storage.length>=S.storageMax){
+      if(S.storage.length>=storageMax()){
         const evictable=S.storage.filter(x=>!x.preloaded&&!x.contractTarget)
           .sort((a,b)=>(a.credValue||0)-(b.credValue||0));
         if(evictable.length){
@@ -601,7 +624,7 @@ function autoDoObj(cell,ct,obj){
           addLog(`◉ Contract collect: evicted ${fLabel(evictable[0])} to make room`,'li');
         }
       }
-      if(S.storage.length<S.storageMax){
+      if(S.storage.length<storageMax()){
         obj.targetFile.contractTarget=true; // mark so it's never evicted
         S.storage.push(obj.targetFile);
         if(a==='collect_delete'&&cell.files)cell.files=cell.files.filter(f=>f.id!==obj.targetFile.id);
@@ -629,7 +652,7 @@ function autoDoObj(cell,ct,obj){
     }else addLog('Need Intercept program installed for display contract','lw');
   }
   else if(a==='destroy'){cell.destroyed=true;completeObj(ct,obj);}
-  // ── v0.6.3 new verb handlers ──────────────────────────────────────────
+  // ── v0.7.0 new verb handlers ──────────────────────────────────────────
   else if(a==='corrupt'){
     // Degrade all files on node by 50%
     if(cell.files) cell.files.forEach(f=>{ f.credValue=Math.floor((f.credValue||0)*0.5); f.corrupted=true; });
@@ -854,7 +877,10 @@ function moveHunters(){
       }
 
       S.hunters.splice(i,1);
-      startCombat({r:pr,c:pc,ice:'HUNTER',id:'hc',hunterType:h.type||'standard'});
+      // fromICE hunters may carry a specific iceStr from their grid cell
+      const _hcell={r:pr,c:pc,ice:'HUNTER',id:'hc',hunterType:h.type||'standard'};
+      if(h.fromICE&&h.iceStr) _hcell._overrideStr=h.iceStr;
+      startCombat(_hcell);
     }
   });
 }
@@ -896,6 +922,23 @@ function tickCOPPings(){
       S.trace=Math.min(100,S.trace+traceAdd);
     }
     if(activeCOPs>=2||(S.alert>=1&&S.alertPressure%40<6))addLog(`⬟ ${activeCOPs} COP${activeCOPs>1?'s':''}: +${pingAmount} pressure`,'lw');
+  }
+}
+
+function activateMobileICE(){
+  // Scan grid for any HUNTER ICE placed at build time — activate as moving hunters
+  for(let r=0;r<S.rows;r++) for(let c_=0;c_<S.cols;c_++){
+    const cell=S.grid[r]?.[c_];
+    if(!cell||!cell.ice) continue;
+    const def=BASE_ICE[cell.ice];
+    if(!def?.mobile) continue;
+    S.hunters.push({
+      r, c:c_, id:uid(),
+      type:'standard', moveTick:0, fromICE:true,
+      iceStr:typeof iceStr==='function'?iceStr(cell.ice,curTier()):def.baseStr,
+    });
+    cell.ice=null;
+    addLog(`☠ HUNTER ICE at [${r},${c_}] — mobile, tracking player`,'lb');
   }
 }
 
@@ -1006,8 +1049,6 @@ function buildGrid(){
   // Kraken — row-blocking ICE (P5+), placed at tier 5+
   const _bpDist = typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
   if(_bpDist>=16&&Math.random()<0.15+(_bpDist/200)){
-    const _isArchive = cell?.nodeType==='ARCHIVE';
-    if(_isArchive&&typeof unlockAch==='function') unlockAch('deep_archive');
     const kr=rnd(1,rows-2); // not entry/exit rows
     const kc=rnd(1,cols-3); // leave room for 3 cells
     for(let dc=0;dc<3;dc++){

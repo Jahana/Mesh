@@ -36,7 +36,7 @@ function ttProgram(d){
   if(d.passive)  lines.push(`<span style="color:#2a7a2a">Passive — always active</span>`);
   lines.push('');
   lines.push(`<span style="color:#4a8a4a">${d.desc}</span>`);
-  if(d.prestigeReq) lines.push(`<span style="color:#aa6020">Requires Prestige ${d.prestigeReq}</span>`);
+  if(d.prestigeReq){ const _rd=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;if(_rd<d.prestigeReq*8)lines.push(`<span style="color:#aa6020">Requires dist ${d.prestigeReq*8}+</span>`); }
   return lines.join('<br>');
 }
 
@@ -51,7 +51,7 @@ function ttDeck(h){
     `RAM <span style="color:#40aaff">${h.ram}</span>  &nbsp;INT+ <span style="color:#40ff80">${h.integrity}</span>  &nbsp;SPD <span style="color:#ffdd40">${h.spd}</span>  &nbsp;Slots <span style="color:#ff88ff">${h.slots}</span>`,
   ];
   if(h.sigPerk) lines.push('','<span style="color:#ffaa20">★ '+h.sigPerk+'</span>');
-  if(h.prestigeReq) lines.push(`<span style="color:#aa6020">Requires Prestige ${h.prestigeReq}</span>`);
+  if(h.prestigeReq){ const _rhd=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;if(_rhd<h.prestigeReq*8)lines.push(`<span style="color:#aa6020">Requires dist ${h.prestigeReq*8}+</span>`); }
   if(h.lvl>1) lines.push(`<span style="color:#6a4a2a">Requires Level ${h.lvl}</span>`);
   lines.push('','<span style="color:#2a5a3a">'+h.desc+'</span>');
   return lines.join('<br>');
@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.6.3 \u2014 Help & Changes";
+  const title="MESH v0.7.0 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -422,6 +422,7 @@ function showTab(name){
       return;
     }
     renderCraft();
+    if(typeof renderDeckCraft==='function') renderDeckCraft();
   }
   if(name==='progression')renderProgressionScreen();
   if(name==='prestige')renderPrestigeScreen();
@@ -625,7 +626,9 @@ function renderNetTab(){
   const netSeed = (ns.x * 2654435761 ^ ns.y * 2246822519) >>> 0;
   function nodeFaction(col, row){
     if(!factionKeys.length) return 'neutral';
-    const s = ((netSeed ^ (col * 7919 + row * 1000003)) >>> 0) % factionKeys.length;
+    // Must match genNodeContract seed exactly so color = contract faction
+    const addr16 = (col * 16 + row) & 0xFF;
+    const s = ((ns.x * 7919 + ns.y * 1000003 + addr16 * 97) >>> 0) % factionKeys.length;
     return factionKeys[s];
   }
   const currentAddr = S.mesh?.lastNodeAddr || '00';
@@ -652,17 +655,19 @@ function renderNetTab(){
       const accessible = typeof isNodeAccessible==='function' ? isNodeAccessible(addr, ns) : true;
 
       const div = document.createElement('div');
-      const border = isPlayer ? '#40ff80' : done ? col_ : '#0d1a0d';
-      const bg     = isPlayer ? '#0a2010' : done ? col_+'22' : '#060d10';
-      const glow   = isPlayer ? '0 0 6px #40ff8088' : done ? '0 0 3px '+col_+'66' : 'none';
+      // Color all cells by faction — visited brighter, unvisited dimmer
+      const border = isPlayer ? '#40ff80' : done ? col_ : col_+'55';
+      const bg     = isPlayer ? '#0a2010' : done ? col_+'28' : col_+'0e';
+      const glow   = isPlayer ? '0 0 6px #40ff8088' : done ? '0 0 4px '+col_+'88' : 'none';
+      const iceIndicator = hasIce ? `<span style="position:absolute;top:1px;right:1px;width:3px;height:3px;border-radius:50%;background:#ff4040;opacity:0.9"></span>` : '';
       div.style.cssText = `width:${CELL}px;height:${CELL}px;border-radius:2px;display:flex;flex-direction:column;
-        align-items:center;justify-content:center;gap:0;
+        align-items:center;justify-content:center;gap:0;position:relative;
         border:1px solid ${border};background:${bg};box-shadow:${glow};
-        opacity:${accessible?1:0.25};cursor:${accessible?'pointer':'default'};`;
-      div.innerHTML = `<span style="font-size:9px;color:${isPlayer?'#40ff80':done?col_:col_};opacity:${isPlayer||done?1:0.5};text-shadow:${isPlayer?'0 0 6px #40ff80':'none'}">${isPlayer?'◈':done?'✓':NODE_ICON}</span>
-        <span style="font-size:4px;color:${isPlayer?'#40ff80':done?col_+'aa':'#1a3a1a'}">${addr}</span>`;
+        opacity:${accessible?1:0.3};cursor:${accessible?'pointer':'default'};`;
+      div.innerHTML = `${iceIndicator}<span style="font-size:9px;color:${isPlayer?'#40ff80':col_};opacity:${isPlayer?1:done?1:0.7};text-shadow:${isPlayer?'0 0 6px #40ff80':done?'0 0 3px '+col_:'none'}">${isPlayer?'◈':done?'✓':NODE_ICON}</span>
+        <span style="font-size:4px;color:${isPlayer?'#40ff80':col_+'bb'}">${addr}</span>`;
       if(accessible){
-        div.onmouseenter = () => { div.style.borderColor=col_; div.style.background=done?col_+'33':col_+'11'; };
+        div.onmouseenter = () => { div.style.borderColor=col_; div.style.background=done?col_+'44':col_+'22'; };
         div.onmouseleave = () => { div.style.borderColor=border; div.style.background=bg; };
         div.onclick = () => { if(typeof selectNetNode==='function') selectNetNode(addr, node, fac); };
       }
@@ -1113,7 +1118,7 @@ function renderSelPanel(){
 
 function renderPrepRAM(){
   // File RAM (deckRAM) — shown in run sidebar only, NOT the topbar RAM stat
-  const used=S.storage.length,max=S.storageMax;
+  const used=S.storage.length,max=storageMax();
   const stor=S.storage?.length||0,storMax=storageMax();
   const rl=document.getElementById('run-ram-lbl');if(rl)rl.textContent=`${stor}/${storMax}`;
   const rl2=document.getElementById('setup-ram-lbl');if(rl2)rl2.textContent=`${stor}/${storMax}`;
@@ -1233,7 +1238,7 @@ function renderMarket(){
     const g=document.getElementById(gid);if(!g)return;
     ids.forEach(defId=>{
       const d=pdef(defId);if(!d)return;
-      if(d.prestigeReq&&S.prestige<d.prestigeReq)return;
+      // prestige gate removed — programs available by dist
       const owned=S.inventory.some(x=>x.defId===defId);
       const cost=isCred?d.cost:Math.floor(d.cost*0.5);
       const canBuy=isCred?S.cred>=cost:(repHave>=repNeed&&S.cred>=cost);
@@ -1282,13 +1287,14 @@ function renderMarket(){
         const deck=HARDWARE.find(h=>h.mfr===mfr&&h.rarity===rar);
         if(!deck)return;
         const lvlOk=S.level>=deck.lvl;
-        const presOk=(deck.prestigeReq||0)<=S.prestige;
+        const _deckDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+        const presOk=_deckDist>=(deck.prestigeReq||0)*8;
         const repOk=isCred||(repHave>=repNeed);
         const credOk=S.cred>=deck.cost;
         const owned=S.ownedHW.includes(deck.id);
         const canBuy=lvlOk&&presOk&&repOk&&credOk&&!owned;
         const card=document.createElement('div');card.className='sc';
-        const blocker=!lvlOk?`Lv${deck.lvl}`:!presOk?`P${deck.prestigeReq}`:!repOk?'Rep':owned?'Owned':'';
+        const blocker=!lvlOk?`Lv${deck.lvl}`:!presOk?`dist${(deck.prestigeReq||0)*8}+`:!repOk?'Rep':owned?'Owned':'';
         card.innerHTML=`<div class="sc-head">
           <span class="sc-icon" style="color:${deck.mfrColor}">${deck.icon}</span>
           <div><div class="sc-name" style="color:${deck.color}">${deck.name}</div>
@@ -1324,7 +1330,8 @@ function renderMarket(){
       if(item.type==='program'){
         const d=pdef(item.defId);
         owned=S.inventory.some(x=>x.defId===item.defId);
-        const presOk=!d?.prestigeReq||S.prestige>=(d.prestigeReq||0);
+        const _mktDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+        const presOk=!d?.prestigeReq||_mktDist>=(d.prestigeReq||0)*8;
         canBuy=credOk&&!owned&&presOk;
         detail=d?`MEM ${d.mem}${d.str?' STR '+d.str:''}${d.power?' P'+d.power:''}`:item.defId;
         buyFn=`buyBMItem('${item.id}')`;
@@ -1407,7 +1414,9 @@ function renderCraft(){
     if(typeof STARTER_BPS!=='undefined'&&!STARTER_BPS.includes(bp.id)){
       if(!S.earnedBps.includes(bp.id))return false;  // not yet discovered
     }
-    if((bp.prestigeReq||0)>S.prestige)return false;  // prestige-locked
+    // Prestige removed — gate by dist instead (prestigeReq N → dist N*8)
+    const _bpDistR=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if((_bpDistR<(bp.prestigeReq||0)*8))return false;  // dist-locked
     if(bp.isDeck&&(typeof meshDistanceCurrent!=='function'||meshDistanceCurrent()<32))return false; // mythic deck gate
     return true;
   }
@@ -1839,12 +1848,182 @@ function renderPrestigeScreen(){
       }).join('');
       return `<div class="ptitle" style="margin-top:8px">Government Standing</div>${govHtml}`;
     })()}
+    ${(()=>{
+      const _cd=S.craftedDeck;
+      if(!_cd?.chassis) return '';
+      const _st=_cd.activeStats||{};
+      const _parts=[];
+      if(_st.ram)_parts.push(`+${_st.ram} RAM`);
+      if(_st.storage)_parts.push(`+${_st.storage} storage`);
+      if(_st.breakerStr)_parts.push(`+${_st.breakerStr} breaker STR`);
+      if(_st.integrity)_parts.push(`+${_st.integrity} INT`);
+      if(_st.traceResist)_parts.push(`-${_st.traceResist}% trace`);
+      if(_st.iceReveal)_parts.push('ICE reveal');
+      const _col=typeof DC_CHASSIS_COLORS!=='undefined'?DC_CHASSIS_COLORS[_cd.chassis.rarity]||'#c040ff':'#c040ff';
+      return `<div class="ptitle" style="margin-top:8px">Crafted Deck</div>
+        ${row(_cd.chassis.name,`T${_cd.chassis.tier}`,_col)}
+        ${_parts.length?row('Active bonuses',_parts.join(' · '),_col):''}`;
+    })()}
     <div class="ptitle" style="margin-top:8px">Recent Lore</div>
     ${(S.loreLog||[]).slice(0,3).map(e=>`<div style="padding:4px 8px;border-left:2px solid #1a4a2a;margin:2px 0">
       <div style="font-size:7px;color:#2a6a3a;font-family:'Orbitron',monospace">${e.title}</div>
     </div>`).join('')||'<div style="font-size:8px;color:#1a3a1a;padding:4px">None yet</div>'}
   </div>`;
 }
+
+function renderDeckCraft(){
+  const sec = document.getElementById('deck-craft-section');
+  const el  = document.getElementById('deck-craft-inner');
+  if(!sec||!el) return;
+
+  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist < 16){
+    sec.style.display='';
+    el.innerHTML='<div style="font-size:8px;color:#1a4a2a;padding:8px">Deck crafting unlocks at dist 16+.<br>Run government contracts to obtain a chassis.</div>';
+    return;
+  }
+  sec.style.display='';
+  if(typeof initCraftedDeck==='function') initCraftedDeck();
+  const cd = S.craftedDeck;
+  if(!cd){ el.innerHTML='<div style="font-size:8px;color:#1a4a2a;padding:8px">No crafted deck state.</div>'; return; }
+
+  const chassis = cd.chassis;
+  const chassisInv = cd.chassisInventory||[];
+  const compInv    = cd.compInventory||[];
+  const stats = cd.activeStats||{};
+  const CAT_LABELS = {ram:'RAM',cpu:'CPU',storage:'STORAGE',accessory:'ACCESSORY'};
+  const CAT_COLORS = {ram:'#40aaff',cpu:'#ffdd40',storage:'#ff6644',accessory:'#c040ff'};
+  const RARITY_COLORS = {salvage:'#3a6a3a',standard:'#40aaff',military:'#ffaa20',advanced:'#c040ff',prototype:'#ff4040'};
+
+  let html = '';
+
+  // ── Active stats summary ─────────────────────────────────────────────────
+  if(chassis){
+    const activeStats = [];
+    if(stats.ram)          activeStats.push(`+${stats.ram} RAM`);
+    if(stats.storage)      activeStats.push(`+${stats.storage} storage`);
+    if(stats.breakerStr)   activeStats.push(`+${stats.breakerStr} breaker STR`);
+    if(stats.actionTick)   activeStats.push(`${stats.actionTick} action ticks`);
+    if(stats.traceResist)  activeStats.push(`-${stats.traceResist}% trace`);
+    if(stats.iceReveal)    activeStats.push(`ICE reveal`);
+    if(stats.integrity)    activeStats.push(`+${stats.integrity} INT`);
+    if(stats.stealth)      activeStats.push(`+${stats.stealth} stealth`);
+    if(stats.pressureDamp) activeStats.push(`-${stats.pressureDamp} pressure damp`);
+
+    html += `<div style="background:#080d10;border:1px solid ${RARITY_COLORS[chassis.rarity]||'#1a3a1a'};border-radius:4px;padding:8px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+        <span style="font-size:9px;color:${RARITY_COLORS[chassis.rarity]||'#40c060'};font-family:'Orbitron',monospace">${chassis.name}</span>
+        <span style="font-size:7px;color:#2a5a2a">tier ${chassis.tier} · ${chassis.slotCap.toFixed(chassis.slotCap%1===0?0:1)} cap/slot</span>
+      </div>
+      ${activeStats.length?`<div style="font-size:7px;color:#2a6a3a">${activeStats.join(' · ')}</div>`:'<div style="font-size:7px;color:#1a3a1a">No components installed.</div>'}
+    </div>`;
+  } else {
+    html += `<div style="font-size:8px;color:#1a4a2a;padding:8px;border:1px dashed #1a3a1a;border-radius:4px;margin-bottom:8px">No chassis installed. Obtain one from government contracts.</div>`;
+  }
+
+  // ── Chassis inventory ─────────────────────────────────────────────────────
+  if(chassisInv.length){
+    html += `<div style="font-size:7px;color:#1a4a2a;margin-bottom:4px;font-family:'Orbitron',monospace;letter-spacing:1px">CHASSIS INVENTORY</div>`;
+    chassisInv.forEach(ch=>{
+      const col = RARITY_COLORS[ch.rarity]||'#3a6a3a';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;background:#060d08;border:1px solid ${col}44;border-radius:3px;margin-bottom:3px">
+        <span style="font-size:8px;color:${col};flex:1">${ch.name}</span>
+        <span style="font-size:6px;color:#1a4a2a">T${ch.tier} · ${Object.entries(ch.slots).map(([k,v])=>v+'×'+k.slice(0,3).toUpperCase()).join(' ')}</span>
+        <button onclick="dcInstallChassis('${ch.instId}')" style="font-size:7px;padding:2px 6px;background:#0a1a0a;border:1px solid ${col};border-radius:2px;color:${col};cursor:pointer">INSTALL</button>
+      </div>`;
+    });
+  }
+
+  // ── Slot categories ────────────────────────────────────────────────────────
+  if(chassis){
+    ['ram','cpu','storage','accessory'].forEach(cat=>{
+      const color = CAT_COLORS[cat];
+      const numSlots = chassis.slots[cat]||0;
+      const slotCap = chassis.slotCap;
+      const installed = cd.slots[cat]||[];
+      const used = installed.reduce((s,c_)=>{ const d=DC_COMPONENTS.find(x=>x.id===c_.compId); return s+(d?dcComponentCost(d.tier):0);},0);
+      const avail = numSlots * slotCap;
+      const pct = avail>0 ? Math.min(100,Math.round(used/avail*100)) : 0;
+
+      html += `<div style="margin-bottom:8px;border:1px solid ${color}22;border-radius:4px;padding:6px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <span style="font-size:8px;color:${color};font-family:'Orbitron',monospace">${CAT_LABELS[cat]}</span>
+          <span style="font-size:7px;color:#1a4a2a">${numSlots} slot${numSlots!==1?'s':''} · ${used.toFixed(2)}/${avail.toFixed(1)} capacity</span>
+        </div>
+        <div style="height:3px;background:#0d1a0d;border-radius:2px;margin-bottom:6px"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div></div>`;
+
+      // Installed components
+      installed.forEach(inst=>{
+        const def = DC_COMPONENTS.find(x=>x.id===inst.compId);
+        if(!def) return;
+        const cost = dcComponentCost(def.tier);
+        html += `<div style="display:flex;align-items:center;gap:6px;padding:2px 4px;margin-bottom:2px">
+          <span style="font-size:7px;color:${color}">${def.icon}</span>
+          <span style="font-size:7px;color:#3a7a4a;flex:1">${def.name}</span>
+          <span style="font-size:6px;color:#1a4a2a">${cost.toFixed(cost%1===0?0:2)} cap</span>
+          <button onclick="dcRemoveComponent('${cat}','${inst.instId}')" style="font-size:6px;padding:1px 4px;background:#1a0a0a;border:1px solid #4a1a1a;border-radius:2px;color:#c04040;cursor:pointer">✕</button>
+        </div>`;
+      });
+
+      // Available to add
+      const addable = compInv.filter(ci=>{
+        const def=DC_COMPONENTS.find(x=>x.id===ci.compId);
+        return def&&def.cat===cat&&dcCanAdd(cat,ci.compId);
+      });
+      if(addable.length){
+        html += `<div style="font-size:6px;color:#1a4a2a;margin-top:4px;margin-bottom:2px">Available:</div>`;
+        // Deduplicate by compId for display
+        const seen = new Set();
+        addable.forEach(ci=>{
+          if(seen.has(ci.compId)) return;
+          seen.add(ci.compId);
+          const def = DC_COMPONENTS.find(x=>x.id===ci.compId);
+          const count = compInv.filter(x=>x.compId===ci.compId).length;
+          html += `<div style="display:flex;align-items:center;gap:6px;padding:2px 4px;margin-bottom:2px;background:#050d07">
+            <span style="font-size:7px;color:${color}">${def.icon}</span>
+            <span style="font-size:7px;color:#2a6a3a;flex:1">${def.name} ${count>1?'×'+count:''}</span>
+            <span style="font-size:6px;color:#1a3a2a">${def.desc}</span>
+            <button onclick="dcAddComponent('${cat}','${ci.compId}')" style="font-size:6px;padding:1px 4px;background:#0a1a0a;border:1px solid #1a4a1a;border-radius:2px;color:#40c060;cursor:pointer">ADD</button>
+          </div>`;
+        });
+      }
+
+      html += '</div>';
+    });
+  }
+
+  // ── Component inventory (uninstallable / wrong category) ──────────────────
+  const unplaceable = compInv.filter(ci=>{
+    if(!chassis) return true;
+    const def=DC_COMPONENTS.find(x=>x.id===ci.compId);
+    return def&&!dcCanAdd(def.cat,ci.compId);
+  });
+  if(unplaceable.length){
+    const seen=new Set();
+    const uniqUp = unplaceable.filter(ci=>{ if(seen.has(ci.compId))return false;seen.add(ci.compId);return true;});
+    html+=`<div style="font-size:7px;color:#1a4a2a;margin-top:6px;padding:6px;border:1px solid #1a2a1a;border-radius:3px">
+      <div style="font-family:'Orbitron',monospace;font-size:7px;letter-spacing:1px;margin-bottom:4px">STORAGE (${compInv.length} items)</div>
+      ${uniqUp.map(ci=>{
+        const def=DC_COMPONENTS.find(x=>x.id===ci.compId);
+        const count=compInv.filter(x=>x.compId===ci.compId).length;
+        const col=CAT_COLORS[def?.cat]||'#3a6a3a';
+        return def?`<div style="font-size:7px;color:#2a5a3a;padding:1px 0">${def.icon} ${def.name}${count>1?' ×'+count:''} <span style="color:#1a4a2a;font-size:6px">(${def.desc})</span></div>`:'';
+      }).join('')}
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function toggleDeckCraftPanel(){
+  const inner = document.getElementById('deck-craft-inner');
+  const toggle = document.getElementById('deck-craft-toggle');
+  if(!inner) return;
+  const collapsed = inner.style.display==='none';
+  inner.style.display = collapsed?'':'none';
+  if(toggle) toggle.textContent = collapsed?'▾':'▸';
+}
+
 
 function renderAll(){renderTopBar();renderBoard();renderSelPanel();renderPrepRAM();renderPrograms();renderRunRAM();renderRunner();renderDeck();renderInventory();renderRunContracts();}
 
@@ -1980,8 +2159,18 @@ function showRunSummary(){
   // Earnings — broken down by source
   html+=`<div class="sum-section"><div class="sum-label">Earnings</div>`;
   const contractPay=s.contractCred||s.runCred||0;
-  if(contractPay>0)
+  if(contractPay>0){
     html+=`<div class="sum-row"><span class="sum-key">Contract</span><span class="sum-val good">+${contractPay}₵</span></div>`;
+    // Show condition bonus if met
+    const _ct=s.contract;
+    if(_ct?.conditionMet&&_ct?.reward?.bonusCred>0){
+      const _condLabel={stealth:'Stealth bonus',speed:'Speed bonus',witness:'Witness bonus'}[_ct.condition]||'Condition bonus';
+      html+=`<div class="sum-row"><span class="sum-key" style="color:#40ff80">★ ${_condLabel}</span><span class="sum-val good">+${_ct.reward.bonusCred}₵</span></div>`;
+    } else if(_ct?.condition&&!_ct?.conditionMet){
+      const _condLabel={stealth:'Stealth (failed)',speed:'Speed (too slow)',witness:'Witness (hunter spawned)'}[_ct.condition]||'Condition (failed)';
+      html+=`<div class="sum-row"><span class="sum-key" style="color:#aa4020">✗ ${_condLabel}</span><span class="sum-val" style="color:#3a3a3a">+0₵</span></div>`;
+    }
+  }
   if(s.dsCred>0){
     html+=`<div class="sum-row"><span class="sum-key">Data sold (${(s.dsFiles||[]).length} files)</span><span class="sum-val good">+${s.dsCred}₵</span></div>`;
     (s.dsFiles||[]).forEach(f=>{

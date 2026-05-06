@@ -1,4 +1,4 @@
-// MESH v0.6.3 — save.js
+// MESH v0.7.0 — save.js
 // ===================
 
 const SAVE_VER=1;
@@ -19,7 +19,35 @@ function buildSave(name){
     shop:S.shop,shopNextRotate:S.shopNextRotate,
     bmRotation:S._bmRotation||[],bmNextRotate:S._bmNextRotate||0,
     crafting:(S.crafting||[]).filter(c=>!c.done),
-    deckRAMMax:S.storageMax||8};
+    deckRAMMax:S.storageMax||8,
+    quests:S.quests||null,
+    uniqueItems:S.uniqueItems||[],
+    story:S.story||null,
+    ascension:S.ascension||null,
+    govRep:S.govRep||{},
+    craftedDeck:S.craftedDeck||null,
+    opsAutoRepeat:S.ops?.autoRepeat||{},
+    _upliftSeenFlavor:S._upliftSeenFlavor||{},
+    _upliftSeenMech:S._upliftSeenMech||{},
+    // Active run state — restored so objectives persist across saves
+    runState:S.running ? {
+      running:true,
+      active:S.active||[],
+      board:S.board||[],
+      grid:S.grid||[],
+      storage:S.storage||[],
+      rows:S.rows,cols:S.cols,tier:S.tier,
+      player:S.player,
+      integrity:S.integrity,
+      trace:S.trace,
+      alert:S.alert,
+      alertPressure:S.alertPressure,
+      patrols:S.patrols||[],
+      hunters:S.hunters||[],
+      contractTimers:S.contractTimers||{},
+      mapped:S.mapped||false,
+    } : null,
+  };
 }
 function applyLoad(data){
   S=mkState();
@@ -47,13 +75,48 @@ function applyLoad(data){
   S.story=data.story||null;
   S.ascension=data.ascension||null;
   S.govRep=data.govRep||{};
+  S.craftedDeck=data.craftedDeck||null;
+  if(S.craftedDeck&&typeof initCraftedDeck==='function') initCraftedDeck();
+  if(S.craftedDeck&&typeof applyDraftDeckStats==='function') applyDraftDeckStats();
+  // Restore active run state if mid-run save
+  if(data.runState?.running){
+    const rs=data.runState;
+    S.running=true;
+    S.active=rs.active||[];
+    S.board=rs.board||[];
+    S.grid=rs.grid||[];
+    S.storage=rs.storage||[];
+    S.rows=rs.rows||4;S.cols=rs.cols||4;S.tier=rs.tier||1;
+    S.player=rs.player||{r:0,c:0,waitTicks:0,stalled:false};
+    S.integrity=rs.integrity||10;
+    S.trace=rs.trace||0;
+    S.alert=rs.alert||0;
+    S.alertPressure=rs.alertPressure||0;
+    S.patrols=rs.patrols||[];
+    S.hunters=rs.hunters||[];
+    S.contractTimers=rs.contractTimers||{};
+    S.mapped=rs.mapped||false;
+    // Rebuild runSnapshot so runInst()/runInv() work
+    S.runSnapshot={ installed:[...S.installed], inventory:S.inventory.map(x=>({...x})) };
+    // Re-assign targetNodeId references from grid (they use cell.id which is stable)
+    S.active.forEach(ct=>ct.objectives.forEach(obj=>{
+      if(obj.targetNodeId){
+        // Verify the node still exists in the grid
+        const found=S.grid.flat().some(cell=>cell?.id===obj.targetNodeId);
+        if(!found) obj.failed=true; // node gone — mark failed rather than hanging
+      }
+    }));
+  }
+  if(data.opsAutoRepeat&&S.ops) S.ops.autoRepeat=data.opsAutoRepeat;
+  if(data._upliftSeenFlavor) S._upliftSeenFlavor=data._upliftSeenFlavor;
+  if(data._upliftSeenMech)   S._upliftSeenMech=data._upliftSeenMech;
   S.mesh=data.mesh||null;
   // Always wipe cached layouts on load — they regenerate deterministically
   if(S.mesh?.visitedNets){
     S.mesh.visitedNets.forEach(ns=>{
       ns.layout = null;
       ns.layoutVersion = null;
-      // Wipe companies if they lack the key field (pre-v0.6.3 saves)
+      // Wipe companies if they lack the key field (pre-v0.7.0 saves)
       const hasKeys = Object.values(ns.companies||{}).flat().every(c=>c.key);
       if(!hasKeys) ns.companies = null;
     });
@@ -67,7 +130,7 @@ function applyLoad(data){
   S._bmNextRotate=data.bmNextRotate||0;
   // Restore craft start times (real-time based)
   S.crafting.forEach(c=>{if(!c.startTime)c.startTime=Date.now();});
-  S.storageMax=data.deckRAMMax||8;
+  S.storageMax=data.deckRAMMax||8; // legacy field — live value comes from storageMax()
   S.shopNextRotate=data.shopNextRotate||{gen:0,corp:0,crim:0,anarch:0};
   S.integrity=maxInt();S.crafting=[];
   // Ensure all shops populated (handles old saves)
@@ -169,6 +232,15 @@ function titleContinue(slot){
     if(typeof checkQuestTriggers==='function') checkQuestTriggers();
     if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
     if(typeof initStory==='function') initStory();
+    // If mid-run save, restore run view
+    if(S.running){
+      if(typeof renderAll==='function') renderAll();
+      if(typeof renderGrid==='function') renderGrid();
+      if(typeof renderRunContracts==='function') renderRunContracts();
+      if(typeof renderSelPanel==='function') renderSelPanel();
+      if(typeof updateLockedBanner==='function') updateLockedBanner();
+      if(typeof showTab==='function') showTab('run');
+    }
   }, 650);
 }
 
@@ -232,7 +304,7 @@ function titleStartNew(overwriteSlot){
   _autoSlot=slot;
   if(!S.mesh) S.mesh = (typeof mkMeshState==='function')?mkMeshState():null;
   if(!S.world) S.world = (typeof mkWorldState==='function')?mkWorldState():null;
-  addLog('▶ NEW GAME — MESH OS v0.6.3','li');
+  addLog('▶ NEW GAME — MESH OS v0.7.0','li');
   addLog('"All the nets that ever were, are, or will be make up the Mesh"','li');
   generateBoard();renderAll();
   hideTitle();
@@ -245,6 +317,15 @@ function titleStartNew(overwriteSlot){
     if(typeof checkQuestTriggers==='function') checkQuestTriggers();
     if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
     if(typeof initStory==='function') initStory();
+    // If mid-run save, restore run view
+    if(S.running){
+      if(typeof renderAll==='function') renderAll();
+      if(typeof renderGrid==='function') renderGrid();
+      if(typeof renderRunContracts==='function') renderRunContracts();
+      if(typeof renderSelPanel==='function') renderSelPanel();
+      if(typeof updateLockedBanner==='function') updateLockedBanner();
+      if(typeof showTab==='function') showTab('run');
+    }
   }, 650);
 }
 
@@ -295,7 +376,7 @@ function startNewGame(){
   S.integrity=maxInt();
   ['gen','corp','crim','anarch'].forEach(f=>initShop(f));
   S.selectedBlueprint=null;
-  addLog('▶ NEW GAME — MESH OS v0.6.3','li');addLog('Select contracts to begin','li');
+  addLog('▶ NEW GAME — MESH OS v0.7.0','li');addLog('Select contracts to begin','li');
   generateBoard();renderAll();showTab('run');
   startAutoRunCountdown();
 }

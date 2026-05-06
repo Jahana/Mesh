@@ -1,4 +1,4 @@
-// MESH v0.6.3 — main.js
+// MESH v0.7.0 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -116,7 +116,19 @@ function gameTick(ts){
   // COP trace pings — every 25 ticks
   if(S.tick%25===0)tickCOPPings();
   const _archDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
-  if(_archDist>=128&&S.tick%10===0)tickCOPRepair(); // Architect ICE only in deep mesh
+  if(_archDist>=128&&S.tick%10===0)tickCOPRepair();
+  // Trace-out: threshold raised by Trace Resist stat cap bonus
+  if(S.running){
+    const _traceCap=100+(typeof charTraceCapBonus==='function'?charTraceCapBonus():0);
+    if(S.trace>=_traceCap){
+      const _tr=typeof charTraceResist==='function'?charTraceResist():0;
+      if(Math.random()<Math.max(0.05,1-_tr/200)){
+        if(typeof addLog==='function') addLog(`◎ Trace maxed (${S.trace.toFixed(0)}% / ${_traceCap}%) — Hunter deployed!`,'lb');
+        if(typeof spawnHunter==='function') spawnHunter();
+        S.trace=Math.max(0,S.trace-30); // partial relief on spawn
+      }
+    }
+  }
 
   // Action queue
   if(S.actionQueue.length){

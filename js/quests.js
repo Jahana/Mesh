@@ -1202,7 +1202,7 @@ function checkProcQuestTrigger(){
   const interval = 3;
   if(cleared-lastAt < interval) return;
   S.quests._lastProcQuestAt = cleared;
-  genProceduralQuest();
+  createProcChain();
 }
 
 // ── QUEST STATE ──────────────────────────────────────────────────────────

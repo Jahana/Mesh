@@ -164,7 +164,9 @@ function autoPickNextNode(){
   if(ffNode && !_ffBlocked) return 'FF';
 
   // Quest override: prioritize certain node types
-  const questNodeType = typeof questAutorunPriorityNodeType==='function'?questAutorunPriorityNodeType():null;
+  // Also prioritise LAB nodes if player has partial blueprint progress
+  const _hasLabProgress = S._labProgress && Object.keys(S._labProgress).length > 0;
+  const questNodeType = typeof questAutorunPriorityNodeType==='function'?questAutorunPriorityNodeType():(_hasLabProgress?'LAB':null);
   if(questNodeType){
     const typed = accessible.filter(n=>ns.layout?.[n.row]?.[n.col]?.nodeType===questNodeType);
     if(typed.length) return typed[Math.floor(Math.random()*typed.length)].addr;

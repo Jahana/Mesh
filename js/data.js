@@ -1,4 +1,4 @@
-// MESH v0.6.3 — data.js
+// MESH v0.7.0 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -184,7 +184,7 @@ const BASE_ICE={
   GATEKEEPER:{minMeshDist:0,icon:'⬡',baseStr:2,retaliation:1,badge:'ibg',label:'GATE'},
   BARRIER:   {minMeshDist:0,icon:'▦',baseStr:2,retaliation:1,badge:'ibb',label:'BARR'},
   GUARDIAN:  {minMeshDist:0,icon:'◈',baseStr:2,retaliation:2,badge:'ibgu',label:'GARD'},
-  HUNTER:    {minMeshDist:0,icon:'☠',baseStr:3,retaliation:3,badge:'ibh',label:'HUNT'},
+  HUNTER:    {minMeshDist:0,icon:'☠',baseStr:3,retaliation:3,badge:'ibh',label:'HUNT',mobile:true},
   PROBE:     {minMeshDist:4,icon:'⊙',baseStr:3,retaliation:1,badge:'ibpr',label:'PROB'},
   BLACK_ICE: {minMeshDist:8,icon:'◼',baseStr:6,retaliation:5,badge:'ibbl',label:'BLCK'},
   TAR_PIT:   {minMeshDist:12,icon:'⬢',baseStr:2,retaliation:1,badge:'ibtp',label:'TAR'},
@@ -213,7 +213,7 @@ const NODE_DEF={
   FIREWALL: {icon:'▣',label:'FWALL',   color:'#ff4040', desc:'Raises alert unless breaker STR exceeds firewall level.'},
   TERMINAL: {icon:'⌨',label:'TERM',    color:'#80ff40', desc:'Reveals all COP locations and silences nearest one.'},
   ARCHIVE:  {icon:'◎',label:'ARCH',    color:'#ffa040', desc:'Historical data — sells for cred at exit, always identified.'},
-  // v0.6.3 additions
+  // v0.7.0 additions
   ROUTER:   {icon:'⇌',label:'ROUT',    color:'#40ddff', desc:'Network hub. Reduces all ICE STR by 1 for run. Reveals patrol paths.'},
   SENSOR:   {icon:'◉',label:'SENS',    color:'#ff6688', desc:'Early warning node. If not disabled, +20 trace spike at exit.'},
   SERVER:   {icon:'▣',label:'SERV',    color:'#aaffdd', desc:'Active host. Generates cred per tick while adjacent. Bonus on clean exit.'},
@@ -373,7 +373,7 @@ const CV={
   access:   {nodeTypes:['VAULT'],              action:'collect'},
   terminal: {nodeTypes:['TERMINAL'],           action:'activate'},
   archive:  {nodeTypes:['ARCHIVE'],            action:'collect'},
-  // v0.6.3 additions
+  // v0.7.0 additions
   intercept_relay:{nodeTypes:['RELAY','GPU'],    action:'display'},
   surveil:  {nodeTypes:['SENSOR'],               action:'activate'},
   route:    {nodeTypes:['ROUTER'],               action:'activate'},
@@ -904,9 +904,9 @@ const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 const pdef=id=>PDEFS.find(p=>p.id===id);
 const hwdef=()=>HARDWARE.find(h=>h.id===S.hardware);
 const ramUsed=()=>S.installed.reduce((a,iid)=>{const it=S.inventory.find(x=>x.instId===iid);return a+(it?pdef(it.defId)?.mem||0:0);},0);
-const ramMax=()=>(hwdef()?.ram||8)+attachEffect('ram')+(typeof charRamBonus==='function'?charRamBonus():0);
+const ramMax=()=>(hwdef()?.ram||8)+attachEffect('ram')+(typeof charRamBonus==='function'?charRamBonus():0)+(typeof getDeckCraftStat==='function'?getDeckCraftStat('ram'):0);
 const storageMax=()=>(hwdef()?.storage||8)+attachEffect('storage');
-const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+attachEffect('integrity')-(S.permIntLoss||0)+(typeof charIntBonus==='function'?charIntBonus():0));
+const maxInt=()=>Math.max(1,10+(hwdef()?.integrity||0)+attachEffect('integrity')-(S.permIntLoss||0)+(typeof charIntBonus==='function'?charIntBonus():0)+(typeof getDeckCraftStat==='function'?getDeckCraftStat('integrity'):0));
 const curTier=()=>levelToTier(S.level);
 const prestigeThresholds=[20,40,60,80,100];
 const nextPrestigeLevel=()=>prestigeThresholds.find(t=>t>S.level-S.prestige*20)||null;

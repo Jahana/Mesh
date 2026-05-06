@@ -103,7 +103,8 @@ function eligibleItems(faction){
   return (MKT_POOL[faction]||[]).filter(id=>{
     const d=pdef(id);
     if(!d)return false;
-    if(d.prestigeReq&&S.prestige<d.prestigeReq)return false;
+    const _shopDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(d.prestigeReq&&_shopDist<d.prestigeReq*8)return false;
     if(d.minMeshDist&&meshDist<d.minMeshDist)return false;
     return true;
   });

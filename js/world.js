@@ -44,7 +44,7 @@ function applyNetLoadout(progList){
   updateApplyBtn(progList);
 }
 
-// MESH v0.6.3 — world.js
+// MESH v0.7.0 — world.js
 // ======================
 // Real world layer: home screen, email stubs, recovery, context before jack-in
 

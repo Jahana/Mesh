@@ -20,7 +20,10 @@ function getBreaker(iceType){
 
 // COMBAT
 function startCombat(cell){
-  const iceType=cell.ice;const tier=curTier();let str=iceStr(iceType,tier);
+  if(S._inCombatInit) return; // re-entrancy guard
+  S._inCombatInit=true;
+  const iceType=cell.ice;const tier=curTier();
+  let str=cell._overrideStr||iceStr(iceType,tier);
   // Zap: passive ICE STR reduction before combat (always-on, smaller values)
   getByEffect('zap').forEach(({d})=>{
     const dmg=d.power||1;
@@ -36,7 +39,7 @@ function startCombat(cell){
     const cloakEffect=getByEffect('cloak');
     const cloakGuaranteed=cloakEffect.length&&!S._cloakUsed;
     if(cloakGuaranteed){S._cloakUsed=true;addLog('◌ Cloak: guaranteed sneak','lg');}
-    if((cloakGuaranteed||hp>0)&&(cloakGuaranteed||Math.random()<Math.min(0.85,hp*0.3))){addLog(`◌ Sneak past ${iceType}`,'lg');cell.ice=null;if(cell.r!==undefined)handleNodeArrival(cell);return;}
+    if((cloakGuaranteed||hp>0)&&(cloakGuaranteed||Math.random()<Math.min(0.85,hp*0.3))){addLog(`◌ Sneak past ${iceType}`,'lg');cell.ice=null;S._inCombatInit=false;if(cell.r!==undefined)handleNodeArrival(cell);return;}
   }
   // Switchblade: override breaker selection with absolute best
   let bIid=getBreaker(iceType);
@@ -55,7 +58,8 @@ function startCombat(cell){
     S.stats.iceUnbreached=(S.stats.iceUnbreached||0)+1;
     S.stats.totalDamageReceived=(S.stats.totalDamageReceived||0)+dmg;
     addLog(`✗ No breaker for ${iceType} — -${dmg} INT`,'lb');
-    if(typeof checkNoBreaker==='function')checkNoBreaker(); // no-breaker combat attempted
+    if(typeof checkNoBreaker==='function')checkNoBreaker();
+    S._inCombatInit=false;
     if(S.integrity<=0){boot();return;}
     if(cell.r!==undefined){cell.ice=null;handleNodeArrival(cell);}return;
   }
@@ -76,6 +80,7 @@ function startCombat(cell){
   let armor=0;getByEffect('armor').forEach(({d})=>{armor+=d.power||1;});
   if(S._mfrPerk?.firstHitAbsorb&&!S._mfrPerk._firstHitUsed){armor++;S._mfrPerk._firstHitUsed=true;}
   if(armor>0)addLog(`◫ Armor: ${armor} hits`,'li');
+  S._inCombatInit=false;
   S.combat={iceType,iceStr:str,iceStrMax:str,breakerInstId:bIid,breakerStr:effStr,round:0,cellR:cell.r,cellC:cell.c,armor,
     hunterType:cell.hunterType||null};
   S.combatTick=0;
@@ -88,7 +93,8 @@ function resolveCombatRound(){
   if(!S.combat)return;const c=S.combat;c.round++;
   const overload=S._overloadActive?1:0;
   const _traitDmg=typeof traitCombatDamageBonus==='function'?traitCombatDamageBonus():0;
-  const dmg=Math.min(c.iceStr,c.breakerStr+overload+_traitDmg);c.iceStr=Math.max(0,c.iceStr-dmg);
+  const _craftStr=typeof getDeckCraftStat==='function'?getDeckCraftStat('breakerStr'):0;
+  const dmg=Math.min(c.iceStr,c.breakerStr+overload+_traitDmg+_craftStr);c.iceStr=Math.max(0,c.iceStr-dmg);
   c._totalDmgDealt=(c._totalDmgDealt||0)+dmg;
   // Only log round detail in first 2 rounds or when ICE is about to fall
   if(c.round<=2||c.iceStr<=c.breakerStr){
@@ -113,6 +119,8 @@ function resolveCombatRound(){
     }
     const dmgSummary=c._totalDmgDealt?` (dealt ${c._totalDmgDealt})`:'';
     S._iceEncountered=S._iceEncountered||new Set();S._iceEncountered.add(c.iceType);
+    S._iceBreachedTypes=S._iceBreachedTypes||new Set();S._iceBreachedTypes.add(c.iceType);
+    if(S._iceBreachedTypes.size>=3&&typeof unlockAch==='function') unlockAch('triple_kill');
     S.combat=null;S.player.stalled=false;document.getElementById('combat-panel').classList.remove('active');
     if(cell)handleNodeArrival(cell);return;
   }

@@ -1,4 +1,4 @@
-// MESH v0.6.3 — ascension.js
+// MESH v0.7.0 — ascension.js
 // Uplift Ascension: the progression loop beyond the first playthrough
 // ===================================================================
 //
@@ -315,6 +315,8 @@ function performAscensionReset(){
     achievements: { ...(S.achievements||{}) },
     totalRuns:   S.totalRuns||0,
     totalCred:   S.totalCred||0,
+    govRep:      { ...(S.govRep||{}) },
+    craftedDeck: S.craftedDeck ? JSON.parse(JSON.stringify(S.craftedDeck)) : null,
   };
 
   // Reset to fresh state
@@ -329,6 +331,9 @@ function performAscensionReset(){
   S.achievements= preserve.achievements;
   S.totalRuns   = preserve.totalRuns;
   S.totalCred   = preserve.totalCred;
+  S.govRep      = preserve.govRep;
+  S.craftedDeck = preserve.craftedDeck;
+  if(S.craftedDeck&&typeof applyDraftDeckStats==='function') applyDraftDeckStats();
 
   // Apply trait: rep_network — set base starting rep
   if(hasTrait('rep_network')){

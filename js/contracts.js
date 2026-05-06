@@ -79,6 +79,7 @@ function buyIntel(){
   if(S.cred<cost){addLog(`Intel costs ${cost}₵`,'lw');return;}
   S.cred-=cost;S._intelBought=true;
   addLog(`⊙ Intel purchased: ICE positions revealed on next run (-${cost}₵)`,'li');
+  if(typeof unlockAch==='function') unlockAch('intel_op');
   renderTopBar();autoSave();
 }
 function buyTraceScrub(){
@@ -263,7 +264,7 @@ function toggleContract(cid){
     });
     S.active=[];S.storage=[];
     const need=ct.objectives.filter(o=>o.file).length;
-    if(need>S.storageMax){addLog('Contract requires more RAM than available','lw');return;}
+    if(need>storageMax()){addLog('Contract requires more RAM than available','lw');return;}
     // Rep requirement check
     if(ct.repReq>0){
       const fac=ct.flavor?.toLowerCase();
@@ -378,6 +379,8 @@ function launchRun(){
   hideRunSummary();
   showRunSetup(false);
   buildGrid();
+  // Convert HUNTER ICE cells to moving hunters
+  if(typeof activateMobileICE==='function') activateMobileICE();
   // Apply pre-purchased intel
   // Apply queued off-grid operations (may reposition player via backdoor)
   applyNextRunOps();
@@ -491,6 +494,15 @@ function finishRun(success,reason='complete'){
       }
 
       // Government: route rep to govRep, not S.rep
+      // Gov contract: chance to drop a chassis or component
+      if(ct.flavor==='GOVERNMENT'&&ct.diff>=2){
+        const _govRoll=Math.random();
+        if(_govRoll<(ct.diff>=4?0.25:ct.diff>=3?0.12:0.06)){
+          if(typeof tryDropChassis==='function') tryDropChassis('gov');
+        } else if(_govRoll<(ct.diff>=4?0.55:ct.diff>=3?0.30:0.18)){
+          if(typeof tryDropComponent==='function') tryDropComponent('gov_contract');
+        }
+      }
       if(ct.flavor==='GOVERNMENT'&&ct.govIndex!=null&&typeof addGovRep==='function'){
         addGovRep(ct.govIndex, repGain);
         const _gt=typeof govRepTier==='function'?govRepTier(ct.govIndex):{name:'Unknown'};
@@ -523,7 +535,8 @@ function finishRun(success,reason='complete'){
         const rival=REP_CONFLICT[facKey];
         if(rival&&S.rep[rival]>0){
           const loss=Math.floor(parentGain*0.3);
-          S.rep[rival]=Math.max(0,(S.rep[rival]||0)-loss);
+          const _rivalFloor=typeof repFloor==='function'?repFloor(rival):0;
+          S.rep[rival]=Math.max(_rivalFloor,(S.rep[rival]||0)-loss);
           if(loss>0)bonusLog+=` (${rival} -${loss})`;
         }
         if(facKey&&repTierName(facKey)!==prevTier)addLog(`★ ${(facKey||'').toUpperCase()} rep: ${prevTier} → ${repTierName(facKey)}`,'lp');
@@ -532,10 +545,11 @@ function finishRun(success,reason='complete'){
         S._repChanges.push({fac:facKey,gain:parentGain,subfac:sfKey,subfacName:sfName,subGain:repGain,rival:rival,rivalLoss:rival?Math.floor(parentGain*0.3):0});
       }
 
-      // Booted penalty: lose rep
+      // Booted penalty: lose rep, but never below current tier floor
       if(!success&&facKey){
         const penalty=Math.floor(ct.reward.xp*0.5);
-        S.rep[facKey]=Math.max(0,(S.rep[facKey]||0)-penalty);
+        const _bootFloor=typeof repFloor==='function'?repFloor(facKey):0;
+        S.rep[facKey]=Math.max(_bootFloor,(S.rep[facKey]||0)-penalty);
         bonusLog+=` (booted: -${penalty} rep)`;
       }
 
@@ -553,8 +567,9 @@ function finishRun(success,reason='complete'){
       // Failed contract — lose rep
       if(facKey&&doneCount===0){
         const penalty=Math.floor(ct.reward.xp*0.5);
-        S.rep[facKey]=Math.max(0,(S.rep[facKey]||0)-penalty);
-        addLog(`✗ ${ct.name}: failed (-${penalty} ${fac} rep)`,'lb');
+        const _failFloor=typeof repFloor==='function'?repFloor(facKey):0;
+        S.rep[facKey]=Math.max(_failFloor,(S.rep[facKey]||0)-penalty);
+        addLog(`✗ ${ct.name}: failed (-${penalty} ${fac} rep, floor: ${_failFloor})`,'lb');
       }else if(doneCount>0){
         const pc=Math.floor(ct.reward.cred*(doneCount/totalCount)*0.5);
         runCred+=pc;gainXP(Math.floor(ct.reward.xp*0.3));
@@ -603,7 +618,8 @@ function finishRun(success,reason='complete'){
     reason, success,
     contract:S.active[0]||null,
     runCred,
-    contractCred:runCred-dsCred-gpuCred, // just contract payout
+    cred:runCred,           // alias for achievement checks
+    contractCred:runCred-dsCred-gpuCred,
     dsCred, dsFiles:[...dsFiles],
     gpuCred,
     punchBonus:S.active[0]?.reward?.punchBonus||0,
@@ -621,6 +637,8 @@ function finishRun(success,reason='complete'){
     realMs:Date.now()-(S._runStartTime||Date.now()),
     cred:runCred,
     contracts:runCts,
+    yellowAlertHit:S._yellowAlertHit||false,
+    redAlertHit:S._redAlertHit||false,
     copsSilenced:S._copsSilencedThisRun||0,
   };
 
