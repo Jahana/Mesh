@@ -1,4 +1,4 @@
-// MESH v0.7.0 — mesh.js
+// MESH v0.7.1 — mesh.js
 // =====================
 // Mesh coordinate space: two 32-bit unsigned integers (x, y)
 // Distance from origin: sqrt(x^2 + y^2)

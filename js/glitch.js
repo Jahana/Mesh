@@ -1,4 +1,4 @@
-// MESH v0.7.0 — glitch.js
+// MESH v0.7.1 — glitch.js
 // Glitch Zone Government System + Visual Overlay
 // ================================================================
 
@@ -152,9 +152,8 @@ let _glitchCellTimer = null;
 let _glitchActive    = false;
 
 // ── SEED ──────────────────────────────────────────────────────────────────
-let _gs = 1;
 function _gr(){ _gs = (_gs * 1664525 + 1013904223) >>> 0; return _gs / 4294967296; }
-function _gseed(){ _gs = ((Date.now() * 6364136) ^ (_gs * 1013904223)) >>> 0 || 1; }
+
 
 // ── CSS (injected once) ──────────────────────────────────────────────────
 function initGlitchOverlay(){
@@ -195,133 +194,146 @@ function initGlitchOverlay(){
 }
 
 // ── CANVAS DRAW ───────────────────────────────────────────────────────────
+// ── GLITCH EFFECT SYSTEM ──────────────────────────────────────────────────
+// setInterval triggers bursts. RAF draws during burst, clears between.
+
+let _glitchOn      = false;  // currently showing effects?
+let _glitchBurstTimer = null;
+let _glitchNextTimer  = null;
+let _glitchCurrentIntensity = 0;
+
+function _scheduleBurst(intensity){
+  clearTimeout(_glitchBurstTimer);
+  clearTimeout(_glitchNextTimer);
+  if(!_glitchActive) return;
+  // Use minimum intensity so even dist 16 gets occasional bursts
+  const _eff = Math.max(0.05, intensity);
+
+  // Wait between bursts: 1s–5s (shorter at high intensity)
+  const wait = 1000 + (1 - _eff) * 4000 + Math.random() * 1000;
+  _glitchNextTimer = setTimeout(() => {
+    if(!_glitchActive) return;
+    _glitchRoll = Math.random();
+    _glitchOn = true;
+    // Burst lasts 100ms–400ms
+    const dur = 100 + _eff * 300 + Math.random() * 150;
+    _glitchBurstTimer = setTimeout(() => {
+      _glitchOn = false;
+      _scheduleBurst(Math.max(0.05, _glitchCurrentIntensity));
+    }, dur);
+  }, wait);
+}
+
 function _drawGlitch(intensity){
   if(!_glitchCtx || !_glitchCanvas) return;
   const W = _glitchCanvas.width, H = _glitchCanvas.height;
   const ctx = _glitchCtx;
-  ctx.clearRect(0,0,W,H);
+  ctx.clearRect(0, 0, W, H);
+  if(!_glitchOn) return;  // between bursts — canvas is clear
 
-  // Time-based RNG — different every frame
-  let _rs = (Date.now() ^ (Date.now() * 0.001 | 0)) >>> 0;
-  function rand(){
-    _rs ^= _rs << 13; _rs ^= _rs >> 17; _rs ^= _rs << 5;
-    return (_rs >>> 0) / 4294967296;
-  }
+  // Pick one effect type per burst (random each burst via Math.random which
+  // changes each frame — gives animated noise within the burst)
+  const roll = _glitchRoll;  // set once per burst start
 
-  // ── 1. Horizontal slice offsets (VHS tracking) ─────────────────────────
-  {
-    const numSlices = 6 + Math.floor(intensity * 20);
-    for(let s = 0; s < numSlices; s++){
-      const y  = Math.floor(rand() * H);
-      const h  = 1 + Math.floor(rand() * Math.max(2, intensity * 12));
-      const dx = Math.floor((rand() - 0.5) * (20 + intensity * 80));
-      if(Math.abs(dx) < 1) continue;
-      ctx.globalAlpha = 0.45 + rand() * 0.5;
-      ctx.fillStyle = rand() < 0.7
-        ? `rgba(0,${160+Math.floor(rand()*95)},${40+Math.floor(rand()*80)},1)`
-        : `rgba(${100+Math.floor(rand()*155)},${100+Math.floor(rand()*155)},${100+Math.floor(rand()*155)},1)`;
+  if(roll < 0.22){
+    // ── Horizontal slice offsets (VHS) ────────────────────────────────────
+    const n = 4 + Math.floor(intensity * 18);
+    for(let s = 0; s < n; s++){
+      const y  = Math.floor(Math.random() * H);
+      const h  = 1 + Math.floor(Math.random() * (2 + intensity * 10));
+      const dx = Math.floor((Math.random() - 0.5) * (20 + intensity * 80));
+      if(Math.abs(dx) < 2) continue;
+      ctx.globalAlpha = 0.55 + Math.random() * 0.4;
+      ctx.fillStyle = Math.random() < 0.7
+        ? `rgba(0,${160+Math.floor(Math.random()*95)},${40+Math.floor(Math.random()*80)},1)`
+        : `rgba(${130+Math.floor(Math.random()*125)},${130+Math.floor(Math.random()*125)},${130+Math.floor(Math.random()*125)},1)`;
       ctx.fillRect(dx, y, W, h);
     }
-  }
-
-  // ── 2. Digital snow (always visible, density scales) ────────────────────
-  {
-    const count = 300 + Math.floor(W * H * intensity * 0.018);
-    ctx.save();
+  } else if(roll < 0.44){
+    // ── Digital snow ──────────────────────────────────────────────────────
+    const count = 400 + Math.floor(W * H * (0.004 + intensity * 0.014));
     for(let i = 0; i < count; i++){
-      const px = Math.floor(rand() * W);
-      const py = Math.floor(rand() * H);
-      const b  = 100 + Math.floor(rand() * 155);
-      ctx.globalAlpha = 0.55 + rand() * 0.45;
-      ctx.fillStyle = rand() < 0.6
-        ? `rgb(0,${b},${Math.floor(b*0.35)})`
-        : `rgb(${b},${b},${b})`;
-      ctx.fillRect(px, py, rand() < 0.25 ? 2 : 1, 1);
+      const px = Math.floor(Math.random() * W);
+      const py = Math.floor(Math.random() * H);
+      const b  = 100 + Math.floor(Math.random() * 155);
+      ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+      ctx.fillStyle = Math.random() < 0.65
+        ? `rgb(0,${b},${Math.floor(b*0.35)})` : `rgb(${b},${b},${b})`;
+      ctx.fillRect(px, py, Math.random() < 0.25 ? 2 : 1, 1);
     }
-    ctx.restore();
-  }
-
-  // ── 3. Snow patch clusters ─────────────────────────────────────────────
-  {
-    const patches = 2 + Math.floor(intensity * 8);
-    for(let p = 0; p < patches; p++){
-      const px = Math.floor(rand() * (W - 120));
-      const py = Math.floor(rand() * H);
-      const pw = 30 + Math.floor(rand() * 120);
-      const ph = 3  + Math.floor(rand() * 8);
-      ctx.save();
-      ctx.globalAlpha = 0.45 + intensity * 0.45;
+    // Snow clusters
+    const np = 1 + Math.floor(intensity * 5);
+    for(let p = 0; p < np; p++){
+      const px = Math.floor(Math.random() * (W - 100));
+      const py = Math.floor(Math.random() * H);
+      const pw = 20 + Math.floor(Math.random() * 100);
+      const ph = 2 + Math.floor(Math.random() * 7);
+      ctx.globalAlpha = 0.5 + intensity * 0.4;
       for(let i = 0; i < pw; i += 2){
-        if(rand() < 0.3) continue;
-        const b = 80 + Math.floor(rand() * 175);
+        if(Math.random() < 0.3) continue;
+        const b = 80 + Math.floor(Math.random() * 175);
         ctx.fillStyle = `rgb(0,${b},${Math.floor(b*0.3)})`;
         ctx.fillRect(px + i, py, 2, ph);
       }
-      ctx.restore();
     }
-  }
-
-  // ── 4. Full-width displacement lines ────────────────────────────────────
-  {
-    const lines = 3 + Math.floor(intensity * 16);
-    for(let l = 0; l < lines; l++){
-      const ly  = Math.floor(rand() * H);
-      const lh  = 1 + Math.floor(rand() * 4);
-      const ldx = Math.floor((rand() - 0.5) * (12 + intensity * 70));
-      ctx.globalAlpha = 0.35 + intensity * 0.5;
-      ctx.fillStyle = `rgba(0,${160+Math.floor(rand()*95)},60,1)`;
+  } else if(roll < 0.62){
+    // ── Displacement lines ────────────────────────────────────────────────
+    const n = 3 + Math.floor(intensity * 14);
+    for(let l = 0; l < n; l++){
+      const ly  = Math.floor(Math.random() * H);
+      const lh  = 1 + Math.floor(Math.random() * 4);
+      const ldx = Math.floor((Math.random() - 0.5) * (12 + intensity * 70));
+      ctx.globalAlpha = 0.45 + intensity * 0.45;
+      ctx.fillStyle = `rgba(0,${160+Math.floor(Math.random()*95)},60,1)`;
       ctx.fillRect(ldx, ly, W, lh);
     }
-  }
-
-  // ── 5. Vertical tears (always at least one) ─────────────────────────────
-  {
-    const tears = 1 + Math.floor(intensity * 4);
-    for(let t = 0; t < tears; t++){
-      const tx = Math.floor(rand() * W);
-      const ty = Math.floor(rand() * H * 0.7);
-      const th = 20 + Math.floor(rand() * H * 0.5);
+  } else if(roll < 0.78){
+    // ── Vertical tears ────────────────────────────────────────────────────
+    const n = 1 + Math.floor(intensity * 3);
+    for(let t = 0; t < n; t++){
+      const tx = Math.floor(Math.random() * W);
+      const ty = Math.floor(Math.random() * H * 0.65);
+      const th = 25 + Math.floor(Math.random() * H * 0.5);
       ctx.save();
-      ctx.globalAlpha = 0.55 + intensity * 0.4;
+      ctx.globalAlpha = 0.65 + intensity * 0.3;
       ctx.strokeStyle = `rgba(60,255,120,0.95)`;
-      ctx.lineWidth = 1 + Math.floor(rand() * 2);
+      ctx.lineWidth = 1 + Math.floor(Math.random() * 2);
       ctx.beginPath();
       ctx.moveTo(tx, ty);
       for(let y = ty; y < ty + th; y += 2){
-        ctx.lineTo(tx + (rand() - 0.5) * (4 + intensity * 14), y);
+        ctx.lineTo(tx + (Math.random() - 0.5) * (4 + intensity * 14), y);
       }
       ctx.stroke();
       ctx.restore();
     }
-  }
-
-  // ── 6. RGB channel split (always) ─────────────────────────────────────
-  {
-    const sy  = Math.floor(rand() * H);
-    const sh  = 4 + Math.floor(rand() * 24);
-    const rdx = Math.floor((rand() - 0.5) * (8 + intensity * 44));
-    const bdx = Math.floor((rand() - 0.5) * (6 + intensity * 34));
-    ctx.globalAlpha = 0.25 + intensity * 0.45;
+  } else if(roll < 0.92){
+    // ── RGB channel split ─────────────────────────────────────────────────
+    const sy  = Math.floor(Math.random() * H);
+    const sh  = 4 + Math.floor(Math.random() * 22);
+    const rdx = Math.floor((Math.random() - 0.5) * (10 + intensity * 44));
+    const bdx = Math.floor((Math.random() - 0.5) * (8 + intensity * 34));
+    ctx.globalAlpha = 0.3 + intensity * 0.45;
     ctx.fillStyle = 'rgba(255,30,30,1)';
     ctx.fillRect(rdx, sy, W, sh);
     ctx.fillStyle = 'rgba(30,30,255,1)';
     ctx.fillRect(bdx, sy + sh, W, sh);
-  }
-
-  // ── 7. Full-screen flicker (low intensity = rare, high = occasional) ────
-  if(rand() < 0.04 + intensity * 0.1){
-    ctx.globalAlpha = 0.06 + rand() * 0.14;
+  } else {
+    // ── Full-screen flash ─────────────────────────────────────────────────
+    ctx.globalAlpha = 0.06 + Math.random() * 0.12;
     ctx.fillStyle = 'rgba(0,255,60,1)';
     ctx.fillRect(0, 0, W, H);
   }
 }
 
+// Roll once per burst so the same effect type shows for the duration
+let _glitchRoll = 0;
+
+
 function _rafLoop(){
   if(!_glitchActive){ _glitchRafId = null; return; }
-  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
-  if(dist < 16 || dist >= 64){ _stopGlitch(); return; }
-
-  const t = Math.min(1, (dist-16)/47);
+  const dist_ = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist_ < 16 || dist_ >= 64){ _stopGlitch(); return; }
+  const t = Math.min(1, (dist_-16)/47);
   const intensity = t * t;
 
   // Resize canvas if window changed
@@ -375,13 +387,21 @@ function _startGlitch(intensity){
     mainEl.style.filter = `hue-rotate(-${tint}deg) saturate(${sat})`;
   }
 
-  // Start RAF
   _glitchActive = true;
+  _glitchCurrentIntensity = intensity;
+  // Only start burst scheduler if not already running
+  if(!_glitchNextTimer && !_glitchBurstTimer && !_glitchOn){
+    _glitchRoll = Math.random();
+    _scheduleBurst(intensity);
+  }
   if(!_glitchRafId) _glitchRafId = requestAnimationFrame(_rafLoop);
 }
 
 function _stopGlitch(){
   _glitchActive = false;
+  _glitchOn = false;
+  clearTimeout(_glitchBurstTimer);
+  clearTimeout(_glitchNextTimer);
   if(_glitchRafId){ cancelAnimationFrame(_glitchRafId); _glitchRafId = null; }
   if(_glitchOverlayEl){ _glitchOverlayEl.remove(); _glitchOverlayEl = null; }
   if(_glitchCanvas){ _glitchCanvas.remove(); _glitchCanvas = null; _glitchCtx = null; }
@@ -390,18 +410,20 @@ function _stopGlitch(){
 }
 
 function updateGlitchOverlay(){
-  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
-  if(dist < 16 || dist >= 64){ _stopGlitch(); return; }
-  const t = Math.min(1,(dist-16)/47);
-  _startGlitch(t * t);
+  const dist_ = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist_ < 16 || dist_ >= 64){ _stopGlitch(); return; }
+  const t = Math.min(1,(dist_-16)/47);
+  const newIntensity = t * t;
+  _glitchCurrentIntensity = newIntensity;
+  _startGlitch(newIntensity);
 }
 
 // ── CELL-LEVEL EFFECTS ────────────────────────────────────────────────────
 
 function tickGlitchCells(){
-  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
-  if(dist < 16 || dist >= 64 || !S.running){ stopGlitchCellTick(); return; }
-  const intensity = Math.pow(Math.min(1,(dist-16)/47), 2);
+  const dist_ = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist_ < 16 || dist_ >= 64 || !S.running){ stopGlitchCellTick(); return; }
+  const intensity = Math.pow(Math.min(1,(dist_-16)/47), 2);
 
   // Jitter individual cells
   if(Math.random() < intensity * 0.55){
@@ -450,8 +472,8 @@ function tickGlitchCells(){
 }
 
 function startGlitchCellTick(){
-  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
-  if(dist < 16 || dist >= 64){ stopGlitchCellTick(); return; }
+  const dist_ = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist_ < 16 || dist_ >= 64){ stopGlitchCellTick(); return; }
   clearTimeout(_glitchCellTimer);
   tickGlitchCells();
 }

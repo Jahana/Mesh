@@ -1,4 +1,4 @@
-// MESH v0.7.0 — data.js
+// MESH v0.7.1 — data.js
 // ===================
 
 // Level is now uncapped. Tier computed dynamically.
@@ -213,7 +213,7 @@ const NODE_DEF={
   FIREWALL: {icon:'▣',label:'FWALL',   color:'#ff4040', desc:'Raises alert unless breaker STR exceeds firewall level.'},
   TERMINAL: {icon:'⌨',label:'TERM',    color:'#80ff40', desc:'Reveals all COP locations and silences nearest one.'},
   ARCHIVE:  {icon:'◎',label:'ARCH',    color:'#ffa040', desc:'Historical data — sells for cred at exit, always identified.'},
-  // v0.7.0 additions
+  // v0.7.1 additions
   ROUTER:   {icon:'⇌',label:'ROUT',    color:'#40ddff', desc:'Network hub. Reduces all ICE STR by 1 for run. Reveals patrol paths.'},
   SENSOR:   {icon:'◉',label:'SENS',    color:'#ff6688', desc:'Early warning node. If not disabled, +20 trace spike at exit.'},
   SERVER:   {icon:'▣',label:'SERV',    color:'#aaffdd', desc:'Active host. Generates cred per tick while adjacent. Bonus on clean exit.'},
@@ -373,7 +373,7 @@ const CV={
   access:   {nodeTypes:['VAULT'],              action:'collect'},
   terminal: {nodeTypes:['TERMINAL'],           action:'activate'},
   archive:  {nodeTypes:['ARCHIVE'],            action:'collect'},
-  // v0.7.0 additions
+  // v0.7.1 additions
   intercept_relay:{nodeTypes:['RELAY','GPU'],    action:'display'},
   surveil:  {nodeTypes:['SENSOR'],               action:'activate'},
   route:    {nodeTypes:['ROUTER'],               action:'activate'},

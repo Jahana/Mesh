@@ -1,4 +1,4 @@
-// MESH v0.7.0 — save.js
+// MESH v0.7.1 — save.js
 // ===================
 
 const SAVE_VER=1;
@@ -116,7 +116,7 @@ function applyLoad(data){
     S.mesh.visitedNets.forEach(ns=>{
       ns.layout = null;
       ns.layoutVersion = null;
-      // Wipe companies if they lack the key field (pre-v0.7.0 saves)
+      // Wipe companies if they lack the key field (pre-v0.7.1 saves)
       const hasKeys = Object.values(ns.companies||{}).flat().every(c=>c.key);
       if(!hasKeys) ns.companies = null;
     });
@@ -304,7 +304,7 @@ function titleStartNew(overwriteSlot){
   _autoSlot=slot;
   if(!S.mesh) S.mesh = (typeof mkMeshState==='function')?mkMeshState():null;
   if(!S.world) S.world = (typeof mkWorldState==='function')?mkWorldState():null;
-  addLog('▶ NEW GAME — MESH OS v0.7.0','li');
+  addLog('▶ NEW GAME — MESH OS v0.7.1','li');
   addLog('"All the nets that ever were, are, or will be make up the Mesh"','li');
   generateBoard();renderAll();
   hideTitle();
@@ -376,7 +376,7 @@ function startNewGame(){
   S.integrity=maxInt();
   ['gen','corp','crim','anarch'].forEach(f=>initShop(f));
   S.selectedBlueprint=null;
-  addLog('▶ NEW GAME — MESH OS v0.7.0','li');addLog('Select contracts to begin','li');
+  addLog('▶ NEW GAME — MESH OS v0.7.1','li');addLog('Select contracts to begin','li');
   generateBoard();renderAll();showTab('run');
   startAutoRunCountdown();
 }

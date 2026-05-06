@@ -652,7 +652,7 @@ function autoDoObj(cell,ct,obj){
     }else addLog('Need Intercept program installed for display contract','lw');
   }
   else if(a==='destroy'){cell.destroyed=true;completeObj(ct,obj);}
-  // ── v0.7.0 new verb handlers ──────────────────────────────────────────
+  // ── v0.7.1 new verb handlers ──────────────────────────────────────────
   else if(a==='corrupt'){
     // Degrade all files on node by 50%
     if(cell.files) cell.files.forEach(f=>{ f.credValue=Math.floor((f.credValue||0)*0.5); f.corrupted=true; });

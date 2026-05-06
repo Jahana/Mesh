@@ -1,4 +1,4 @@
-// MESH v0.7.0 — story.js
+// MESH v0.7.1 — story.js
 // The Blackout narrative — assembled from fragments
 // =========================================================
 

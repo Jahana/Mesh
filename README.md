@@ -1,4 +1,4 @@
-# MESH v0.7.0 — Idle Netrunner
+# MESH v0.7.1 — Idle Netrunner
 
 > *"All the nets that ever were, are, or will be make up the Mesh"*
 
@@ -25,20 +25,17 @@ REAL WORLD  (home base)
 
 MESH  (coordinate space — 32-bit unsigned integer pairs)
   ├── dist  0–15:  Clean mesh
-  ├── dist 16–63:  Glitch Zone  ← government territory, canvas glitch overlay, faction dropout
+  ├── dist 16–63:  Glitch Zone  ← government territory, glitch overlay, faction dropout
   ├── dist 64–255: Static layer
   ├── dist 256+:   AI Territory
-  └── ⬡ MESH tab: coordinate nav, visited nets with government labels
 
 NET  (16×16 node map, addresses 00–FF)
-  ├── Factions scale with dist (see Glitch Zone below)
+  ├── Cells colored by faction (corp=blue, crim=amber, anarch=red, neutral=green, gov=olive)
   ├── 3 companies per non-gov faction, 1–4 government entities per net
-  ├── Net market: faction gear + deck components in glitch zone
-  └── ⬡ NET tab: compact 18px map, ICE indicators, node types
+  └── Net market: faction gear + deck components in glitch zone
 
 NODE  (single contract run)
   ├── Grid: dist/4 → TIER_GRIDS (4×4 at dist 0 → 15×15 at dist 56)
-  ├── ICE STR: (base + dist/3 + glitch + static − router) × ascensionDifficulty
   ├── Per-node interaction timing (RAM 0.8s → BLACKSITE 4s)
   └── Progress bar on every active queued cell
 ```
@@ -47,16 +44,15 @@ NODE  (single contract run)
 
 ## Glitch Zone (dist 16–63)
 
-Government territory. Other factions thin out and disappear.
+Government territory. Other factions thin out and disappear by dist 32.
 
-**Visual overlay** — canvas-based RAF loop, scales quadratically from dist 16 to 63:
-- Jagged horizontal slice offsets (VHS tracking artifact, ±40px at full intensity)
-- Digital snow: scattered bright pixels + rectangular noise clusters
-- Full-width displacement lines
-- Vertical tear lines (jagged, animated)
-- RGB channel split artifacts
-- Rare full-screen green flash at high intensity
-- Cell-level jitter, row desaturation/inversion flashes, multi-row displacement
+**Visual overlay** — burst-based event system:
+- RAF loop runs continuously; effects fire in discrete bursts (not every frame)
+- Burst frequency: ~5s apart at dist 16, ~1s apart at dist 63
+- Burst duration: 100–400ms
+- Each burst shows one effect type: horizontal slice offsets, digital snow + clusters, displacement lines, vertical tears, RGB channel split, or full-screen flash
+- CSS layer: scanlines, vignette, phosphor glow bar (always present)
+- Cell-level: jitter, row desaturation/inversion, multi-row displacement (during runs)
 
 **Faction dropout:**
 
@@ -73,7 +69,7 @@ Government territory. Other factions thin out and disappear.
 - Govs 16–27: two dists each (dist 32–55)
 - Govs 28–31: all four jointly control dist 56–63 (superpowers)
 
-Gov rep tracked globally per government in `S.govRep`. Tiers: Unknown → Flagged → Vetted → Cleared → Integrated. Shown in PROGRESS and ARCHIVE tabs.
+Gov rep tracked globally per government in `S.govRep`. Tiers: Unknown → Flagged → Vetted → Cleared → Integrated.
 
 ---
 
@@ -86,24 +82,22 @@ Gov rep tracked globally per government in `S.govRep`. Tiers: Unknown → Flagge
 | EMPTY | · | always | — | Pass-through |
 | RAM | ▦ | always | 0.8s | Auto-collect file |
 | I/O | ⇄ | always | 0.8s | Download speed boost, small cred |
-| CPU | ◈ | dist 1 | 2s | Map reveal, trap sweep, +breaker STR (stacks) |
+| CPU | ◈ | dist 1 | 2s | Map reveal, trap sweep, +breaker STR |
 | GPU | ▣ | dist 2 | 2s | Intercept feed — needs Intercept program |
 | DATASTORE | ◉ | always | multi | Scan/decrypt/download; 15% lore drop |
 | COP | ⬟ | dist 1 | 2s | Silence to stop pings; may spawn Hunter |
 | RELAY | ⇢ | dist 2 | 1.2s | Reveals cells in radius, freezes patrol |
 | VAULT | ◆ | dist 4 | 3.5s | High-value files — requires Decrypt |
 | PROXY | ⬭ | dist 4 | 1.2s | Reroutes patrols away from row/col |
-| FIREWALL | ▣ | dist 3 | 2.2s | Pressure spike if breaker STR insufficient |
+| FIREWALL | ▣ | dist 3 | 2.2s | Pressure spike if breaker STR low |
 | TERMINAL | ⌨ | dist 3 | 2.5s | Reveals and silences all COPs |
 | ARCHIVE | ◎ | dist 4 | 2.5s | Historical data, sells at exit |
-| ROUTER | ⇌ | dist 3 | 1.8s | −1 all ICE STR per hack (stacks), reveals patrols |
-| SENSOR | ◉ | dist 5 | 1.5s | Re-visit to disable; +20 trace/sensor at exit |
+| ROUTER | ⇌ | dist 3 | 1.8s | −1 all ICE STR per hack (stacks) |
+| SENSOR | ◉ | dist 5 | 1.5s | Re-visit to disable; +20 trace at exit |
 | SERVER | ▣ | dist 5 | 2.5s | Cred tap; clean-exit bonus |
 | NEXUS | ⊛ | dist 8 | 2s | Auto-completes linked secondary node |
-| BLACKSITE | ◼ | dist 16 | 4s | Hidden until adjacent; always ICE-guarded; enter first to reveal ICE, return after breach for reward |
+| BLACKSITE | ◼ | dist 16 | 4s | Hidden until adjacent; ICE-guarded; first visit reveals ICE, return after breach for reward + 40% blueprint + 25% component |
 | LAB | ⚗ | dist 8 | 3s | Blueprint progress (2 visits = earn blueprint) |
-
-**BLACKSITE behaviour:** First visit reveals ICE but does not consume the node. Break the ICE, then re-visit to collect the data file, blueprint chance (40%), component chance (25%), and sensor alert.
 
 ---
 
@@ -114,7 +108,7 @@ Gov rep tracked globally per government in `S.govRep`. Tiers: Unknown → Flagge
 | GATEKEEPER | dist 0 | — | Raises alert |
 | BARRIER | dist 0 | — | +trace |
 | GUARDIAN | dist 0 | — | Disables random program |
-| HUNTER | dist 0 | **yes** | Tracks player; combat on contact |
+| HUNTER | dist 0 | **yes** | Activates as moving hunter at run start |
 | PROBE | dist 4 | — | 60% chance disable program |
 | BLACK_ICE | dist 8 | — | Permanent −1 max INT |
 | TAR_PIT | dist 12 | — | Stacks movement slow |
@@ -125,8 +119,6 @@ Gov rep tracked globally per government in `S.govRep`. Tiers: Unknown → Flagge
 | CASCADE | dist 96 | — | Spawns Barrier on defeat |
 | ARCHITECT | dist 128 | — | Self-repairs COP nodes |
 | OMEGA | dist 192 | — | Pressure + trace + permanent INT loss |
-
-**Hunter ICE** is mobile — on run start it activates as a moving hunter entity that tracks the player across the grid, using the same movement system as COP-spawned hunters.
 
 STR: `(base + dist/3 + glitch + static − router hacks) × ascension multiplier`
 
@@ -164,67 +156,63 @@ Partial: 70% proportional (0% for Risk). Rep never drops below current tier floo
 
 ## Reputation
 
-### Faction rep tiers (corp/crim/anarch/neutral)
-| Tier | Floor | Effect |
+### Faction tiers (corp / crim / anarch / neutral)
+| Tier | Floor | Perk |
 |---|---|---|
-| Unknown | 0 | No shop access |
+| Unknown | 0 | — |
 | Known | 100 | Shop access, basic contracts |
 | Trusted | 500 | Advanced contracts |
-| Elite | 1500 | Elite contracts, faction perk |
-| Legend | 4000 | Legend perk |
+| Elite | 1500 | Elite contracts, faction perk active |
+| Legend | 4000 | Legend perk active |
 
-**Rep floor:** Once you reach a tier, rep can never drop below its floor — even from 100 rival/failure penalties.
+Rep floor: earned tier level is permanent — penalties can never push rep below the floor.
 
-### Government rep (per government, dist 16+)
+### Government rep (per government, glitch zone)
 Unknown → Flagged (100) → Vetted (500) → Cleared (1500) → Integrated (4000)
+
+### Quest rep steps
+`rep_faction` quest objectives now check rep continuously — they advance immediately if the threshold is already met when the step starts, not just on next contract completion.
 
 ---
 
 ## Deck Crafting (CRAFT tab, dist 16+)
 
-Crafted decks are assembled from a **chassis** + **components**. Stats apply live — no commit step needed.
+Assembled from a **chassis** + **components**. Stats apply live.
 
 ### Chassis
 Drops from government contracts (diff 2: 6%, diff 3: 12%, diff 4: 25%). Rarities: Salvage → Standard → Military → Advanced → Prototype. Tier (1–3) scales with gov rep.
 
-Each chassis has slot counts per category (RAM / CPU / STORAGE / ACCESSORY).
-
-**Slot capacity doubles each chassis tier:**
-- Tier 1 = 1.0 cap/slot, Tier 2 = 2.0, Tier 3 = 4.0
+**Slot capacity doubles each chassis tier:** T1=1.0 cap/slot, T2=2.0, T3=4.0
 
 ### Component capacity cost = 1 / 2^(tier−1)
-- T1 = 1.0 → 1 per T1 slot
-- T2 = 0.5 → 2 per T1 slot, or 4 per T2 slot
-- T3 = 0.25 → 4 per T1 slot
-- Mix: 1×T2 + 2×T3 = 0.5 + 0.5 = 1.0 in a T1 slot ✓
+T1=1.0 · T2=0.5 · T3=0.25 · T4=0.125 · T5=0.0625 · T6=0.03125
 
-### Component categories (6 tiers each)
-| Category | T1 effect | T6 effect |
+Mix freely: 1×T2 + 2×T3 = 1.0 ✓ in a T1 slot
+
+### Component categories (T1–T6 each)
+| Category | Stat | T1→T6 range |
 |---|---|---|
-| RAM | +2 RAM | +20 RAM |
-| CPU | +1 breaker STR, −1 action tick | +12 breaker STR, −8 ticks |
-| Storage | +3 file storage | +28 storage |
-| Accessory | varies | varies |
+| RAM | +RAM | +2 → +20 |
+| CPU | +breaker STR, −action ticks | +1/−1 → +12/−8 |
+| Storage | +file storage | +3 → +28 |
+| Accessory | varies | Trace Filter / ICE Scanner / Ghost Protocol / Integrity Shield / Pressure Dampener |
 
-**Accessories:** Trace Filter (−5/8/12% trace), ICE Scanner (reveal type/STR), Ghost Protocol (+stealth), Integrity Shield (+3/5/8 INT), Pressure Dampener (−10/20 pressure on alert raise)
-
-**Acquisition:** Gov contracts drop chassis (6–25%) and components (12–30%). LAB nodes (30% component), TERMINAL nodes (8%), BLACKSITE (25% component), net market (4 components per net in glitch zone).
+**Acquisition:** Gov contracts (chassis 6–25%, components 12–30%), LAB nodes (30%), TERMINAL (8%), BLACKSITE (25%), net market (4 per net in glitch zone).
 
 ---
 
-## Blueprints & Crafting
+## Blueprints
 
-Blueprints unlock programs for crafting. Starter blueprints (Mk3 breakers, Decrypt, Overclock, etc.) always available. Higher tiers unlock by mesh distance:
+Starter blueprints always available. Higher tiers unlock by mesh distance:
 
-| Tier | Dist required |
+| Tier | Dist |
 |---|---|
-| T4 programs | dist 8+ |
-| T5 programs | dist 16+ |
-| T6 programs | dist 24+ |
-| Mythic decks | dist 32+ |
-| High-end utility | dist 40–80+ |
+| T4 programs | 8+ |
+| T5 programs | 16+ |
+| T6 programs | 24+ |
+| Mythic decks | 32+ |
 
-Blueprints drop from: diff 3+ contracts (15%), diff 4 (30%), LAB nodes (2 visits), BLACKSITE (40%), DATASTORE (rare).
+Blueprints drop from: diff 3+ contracts (15%), diff 4 (30%), LAB (2 visits), BLACKSITE (40%), DATASTORE (rare).
 
 ---
 
@@ -239,8 +227,6 @@ Blueprints drop from: diff 3+ contracts (15%), diff 4 (30%), LAB nodes (2 visits
 | Trace Resist | −3% trace gain/level; raises trace-out threshold above 100% |
 | Intrusion | +1 all breaker STR/level |
 
-Trace-out threshold: 100 + `charTraceCapBonus()`. Exceeding it triggers Hunter spawn + 30% trace relief.
-
 ---
 
 ## Quests
@@ -252,17 +238,15 @@ Trace-out threshold: 100 + `charTraceCapBonus()`. Exceeding it triggers Hunter s
 | Corporate Extraction | 5 | 3 nets cleared | 12000₵ + 300 corp rep |
 | Anarchist Underground | 7 | 8 nets cleared | 25000₵ + 800 anarch rep |
 
-**Procedural chains** — generated every 3 nets, tension-driven (0–100), 7 flavor profiles, 10 step types.
+**Procedural chains** — generated every 3 nets, tension-driven, 7 flavor profiles, 10 step types.
 
-Email notifications on home screen only (not in-run). Quest objectives persist through save/load. Proc chains restored from save.
+Emails on home screen only. Quest objectives persist through save/load.
 
 ---
 
 ## Save System
 
-Full run state persists across saves: active contracts, grid, storage, player position, integrity, trace, alert, patrols, hunters. `runSnapshot` rebuilt on load so programs work immediately.
-
-Persists: quests, story, ascension, govRep, craftedDeck, uniqueItems, uplift seen state.
+Full run state persists: active contracts, grid, storage, player position, integrity, trace, alert, patrols, hunters. `runSnapshot` rebuilt on load. Persists: quests, story, ascension, govRep, craftedDeck, uniqueItems, uplift seen state.
 
 ---
 
@@ -270,7 +254,7 @@ Persists: quests, story, ascension, govRep, craftedDeck, uniqueItems, uplift see
 
 Triggered at dist 115+. Choose 1 of 3 Weaver Traits.
 
-**Persists through ascension:** lore, story, achievements, unique items, lifetime stats, govRep, craftedDeck  
+**Persists:** lore, story, achievements, unique items, lifetime stats, govRep, craftedDeck  
 **Resets:** gear, level, xp, rep, charStats, mesh, quests  
 **ICE scaling:** ×(1 + count × 0.25)
 
@@ -282,65 +266,52 @@ Triggered at dist 115+. Choose 1 of 3 Weaver Traits.
 
 | File | Contents |
 |---|---|
-| `js/data.js` | ICE (14 + mobile flag), programs, node defs + NODE_INTERACT_TICKS, 28 subfactions |
-| `js/state.js` | State factory, autorun, moveTicks, uplift BFS |
-| `js/save.js` | Save/load including full run state + runSnapshot rebuild |
-| `js/deck.js` | Inventory, hardware, shop, blueprints (dist-gated), black market |
-| `js/deck_crafting.js` | Chassis + component system, market purchase, stat aggregation |
-| `js/combat.js` | ICE combat, retaliation, re-entrancy guard, mobile ICE override |
-| `js/grid.js` | Traversal, 21 node interactions, activateMobileICE, BLACKSITE fix |
-| `js/contracts.js` | Contract gen (rarity/risk/witness), scaling, rep floors, gov routing |
+| `js/data.js` | ICE (14), programs, node defs + NODE_INTERACT_TICKS, 28 subfactions |
+| `js/state.js` | State factory, autorun (LAB priority when in progress), moveTicks |
+| `js/save.js` | Save/load — full run state + runSnapshot rebuild |
+| `js/deck.js` | Inventory, hardware, shop, blueprints (dist-gated) |
+| `js/deck_crafting.js` | Chassis + components, market purchase, stat aggregation |
+| `js/combat.js` | ICE combat, re-entrancy guard, mobile ICE override STR |
+| `js/grid.js` | Traversal, 21 node interactions, activateMobileICE, BLACKSITE two-visit fix |
+| `js/contracts.js` | Contract gen, scaling, rep floors, gov routing |
 | `js/ops.js` | Off-grid operations, auto-repeat |
 | `js/achievements.js` | 95 achievements (all callers wired) |
-| `js/render.js` | All render; prestige → dist gates; gov rep tabs; deck craft UI |
+| `js/render.js` | All render; faction-colored net map; dist-gated blueprints; gov rep tabs |
 | `js/main.js` | Game loop, trace cap threshold, glitch overlay tick |
 | `js/mesh.js` | Mesh coordinates, distance, graduated glitch levels |
 | `js/netgen.js` | Net layout gen, company names, NEXUS links, firmware |
-| `js/world.js` | Home, net map, mesh traversal, uplift briefings, genNetContract |
-| `js/quests.js` | Named chains, proc engine, email notifications, proc chain save/restore |
+| `js/world.js` | Home, net map, mesh traversal, genNetContract |
+| `js/quests.js` | Named chains, proc engine, checkRepFactionSteps, email |
 | `js/story.js` | Story fragments + gov/SUBSTRATE fragments |
-| `js/glitch.js` | 32 governments, faction dropout, canvas glitch overlay |
+| `js/glitch.js` | 32 governments, faction dropout, burst-based glitch overlay |
 | `js/ascension.js` | Uplift Ascension, 12 Weaver Traits, SUBSTRATE arc |
 
 ---
 
 ## Version History
 
-### v0.7.0 *(current)*
-- **HUNTER ICE mobile** — activates as a moving hunter entity at run start; tracks player across grid
-- **BLACKSITE fix** — `blacksiteDone` no longer set before ICE check; reward now fires correctly after breach
-- **Blueprint system fixed** — prestige gates replaced with dist gates throughout render, shop, and market; T4+ blueprints and programs now actually appear
-- **Rep floor** — faction rep can never drop below current tier minimum (Known=100, Trusted=500, etc.)
+### v0.7.1 *(current)*
+- **Glitch overlay** — burst-based event system: effects fire 1–5 seconds apart, visible for 100–400ms each; fixed timer being cancelled by repeated `updateGlitchOverlay` calls (was resetting every 3s, preventing bursts from ever firing)
+- **Storage fix** — `S.storageMax` (stale cached field) replaced with live `storageMax()` call everywhere; storage was capping at 8 regardless of hardware or deck components
+- **Net map** — cells colored by faction using same seed as `genNodeContract` (was using different seed, causing color/contract mismatch)
+- **Quest rep steps** — `checkRepFactionSteps()` runs on contract complete, quest accept, and `checkQuestTriggers`; steps no longer get stuck waiting for a contract that never comes
+- **Hunter ICE** — `activateMobileICE()` now correctly called after `buildGrid()` in `launchRun` (was defined but never wired in)
+- **BLACKSITE reward** — `blacksiteDone` no longer set before ICE check; reward now fires correctly on return visit after breach
+- **Blueprint gates** — all `prestigeReq` checks replaced with `dist × 8` equivalents; T4+ blueprints and programs now visible
 
-### v0.6.4
-- **Deck crafting** — chassis + components, 24 component types, 4 categories, capacity math (T1=1.0, T2=0.5…), gov contract drops, net market, stats wired into all game systems
-- **Save/load** — full run state (grid, contracts, player, hunters) now persists; runSnapshot rebuilt on load; quest objectives survive reload
-- **Glitch overlay** — canvas-based RAF loop; horizontal slices, digital snow, tears, displacement lines, RGB split, cell jitter, row displacement
-- **Government system** — 32 procedural governments, faction dropout, gov rep UI in PROGRESS/ARCHIVE/run summary
-- **Trace cap** — Trace Resist stat now raises hunter-spawn threshold above 100%
-- **Three achievements wired** — black_market, intel_op, triple_kill
-- **Email inline** — body renders in email screen (was hidden behind z-index 5500)
-- **Node timing** — NODE_INTERACT_TICKS per node type (RAM 0.8s → BLACKSITE 4s)
+### v0.7.0
+- Deck crafting system (chassis + components, 4 categories, capacity math)
+- Save/load full run state; runSnapshot rebuilt; quest objectives survive reload
+- Canvas glitch overlay (horizontal slices, snow, tears, displacement, RGB split)
+- Government system (32 procedural govs, faction dropout, gov rep UI)
+- Trace cap threshold from Trace Resist stat
+- Three achievements wired (black_market, intel_op, triple_kill)
+- Email body inline (was hidden behind z-index)
+- Node timing per type (RAM 0.8s → BLACKSITE 4s)
 
-### v0.6.3
-- Contract rarity (Common/Uncommon/Rare/Elite), risk contracts, witness condition, scaling floor
-- 32 governments with glitch zone overlay, faction dropout schedule
-- Uplift briefing rotation (60+ flavor sets, contextual run lines)
-- Government rep (govRep), PROGRESS/ARCHIVE display
-- Story fragments: gov/SUBSTRATE arc (3 new)
-
-### v0.6.2
-- 8 new verb handlers, 4 ascension traits, NET tab map
-- BLACKSITE hidden until adjacent, FIREWALL strength at generation
-- Gov/AI subfactions and correct verbs
-
-### v0.6.1
-- Uplift Ascension (12 Weaver Traits, SUBSTRATE arc)
-- 6 new node types
+### v0.6.x
+- Uplift Ascension, 12 Weaver Traits, SUBSTRATE arc
 - Reactive procedural quest engine
-- 15 story fragments, 3 threads
-
-### v0.6 — v0.5.x
-- Quest hooks, unique items, achievement wiring
-- Prestige removed, gov faction, mesh dist scaling
-- Grid dist/4, ICE STR from dist, char stats, autorun, per-net rep
+- Contract rarity, risk contracts, witness condition
+- Rep floors, faction perks, per-net rep
+- Prestige fully removed, dist-based gating throughout
