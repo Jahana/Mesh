@@ -1306,6 +1306,22 @@ function acceptQuestStep(chainId, stepId){
 
 // ── QUEST PROGRESS TRACKING ──────────────────────────────────────────────
 
+
+function checkRepFactionSteps(){
+  // Advance any active rep_faction quest step where threshold is already met
+  const step = activeQuestStep();
+  if(!step || step.type !== 'rep_faction') return;
+  const chain = activeQuest();
+  if(!chain) return;
+  const prog = S.quests.progress[chain.id];
+  const tgt = step.target;
+  const rep = S.rep?.[tgt.faction]||0;
+  if(rep >= tgt.repRequired){
+    addLog(`◈ Quest [${chain.title}]: ${tgt.faction} rep ${rep}/${tgt.repRequired} — objective met`,'li');
+    advanceQuestStep(chain, prog);
+  }
+}
+
 function onQuestContractComplete(factionKey, meshDist, companyKey){
   const step = activeQuestStep();
   if(!step) return;
@@ -1330,6 +1346,8 @@ function onQuestContractComplete(factionKey, meshDist, companyKey){
       if(rep>=tgt.repRequired) advanceQuestStep(chain, prog);
     }
   }
+  // Also check rep_faction in case rep was already at threshold
+  checkRepFactionSteps();
 }
 
 function onQuestNodeComplete(nodeType, meshDist, addr){

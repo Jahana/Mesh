@@ -199,58 +199,62 @@ function _drawGlitch(intensity){
   if(!_glitchCtx || !_glitchCanvas) return;
   const W = _glitchCanvas.width, H = _glitchCanvas.height;
   const ctx = _glitchCtx;
-  _gseed();
   ctx.clearRect(0,0,W,H);
 
+  // Time-based RNG — different every frame
+  let _rs = (Date.now() ^ (Date.now() * 0.001 | 0)) >>> 0;
+  function rand(){
+    _rs ^= _rs << 13; _rs ^= _rs >> 17; _rs ^= _rs << 5;
+    return (_rs >>> 0) / 4294967296;
+  }
 
-  // ── 1. Horizontal slice offsets — jagged VHS bands ──────────────────
+  // ── 1. Horizontal slice offsets (VHS tracking) ─────────────────────────
   {
-    const slices = Math.floor(3 + intensity * 15);
-    for(let s = 0; s < slices; s++){
-      if(_gr() > 0.6) continue;
-      const y  = Math.floor(_gr() * H);
-      const h  = 1 + Math.floor(_gr() * 8);
-      const dx = Math.floor((_gr() - 0.5) * intensity * 80);
-      if(Math.abs(dx) < 2) continue;
-      ctx.save();
-      ctx.globalAlpha = 0.5 + intensity * 0.4;
-      ctx.fillStyle = `rgba(0,${180+Math.floor(_gr()*75)},${60+Math.floor(_gr()*60)},1)`;
+    const numSlices = 6 + Math.floor(intensity * 20);
+    for(let s = 0; s < numSlices; s++){
+      const y  = Math.floor(rand() * H);
+      const h  = 1 + Math.floor(rand() * Math.max(2, intensity * 12));
+      const dx = Math.floor((rand() - 0.5) * (20 + intensity * 80));
+      if(Math.abs(dx) < 1) continue;
+      ctx.globalAlpha = 0.45 + rand() * 0.5;
+      ctx.fillStyle = rand() < 0.7
+        ? `rgba(0,${160+Math.floor(rand()*95)},${40+Math.floor(rand()*80)},1)`
+        : `rgba(${100+Math.floor(rand()*155)},${100+Math.floor(rand()*155)},${100+Math.floor(rand()*155)},1)`;
       ctx.fillRect(dx, y, W, h);
-      ctx.restore();
     }
   }
 
-  // ── 2. Digital snow ────────────────────────────────────────────────────
+  // ── 2. Digital snow (always visible, density scales) ────────────────────
   {
-    const count = Math.floor(W * H * intensity * intensity * 0.02);
+    const count = 300 + Math.floor(W * H * intensity * 0.018);
     ctx.save();
     for(let i = 0; i < count; i++){
-      const px = Math.floor(_gr() * W);
-      const py = Math.floor(_gr() * H);
-      const b  = 120 + Math.floor(_gr() * 135);
-      ctx.globalAlpha = 0.6 + _gr() * 0.4;
-      ctx.fillStyle = _gr() < 0.65
-        ? `rgb(40,${b},${Math.floor(b*0.4)})`
+      const px = Math.floor(rand() * W);
+      const py = Math.floor(rand() * H);
+      const b  = 100 + Math.floor(rand() * 155);
+      ctx.globalAlpha = 0.55 + rand() * 0.45;
+      ctx.fillStyle = rand() < 0.6
+        ? `rgb(0,${b},${Math.floor(b*0.35)})`
         : `rgb(${b},${b},${b})`;
-      ctx.fillRect(px, py, _gr() < 0.15 ? 2 : 1, 1);
+      ctx.fillRect(px, py, rand() < 0.25 ? 2 : 1, 1);
     }
     ctx.restore();
   }
 
   // ── 3. Snow patch clusters ─────────────────────────────────────────────
   {
-    const patches = Math.floor(intensity * intensity * 6);
+    const patches = 2 + Math.floor(intensity * 8);
     for(let p = 0; p < patches; p++){
-      const px = Math.floor(_gr() * (W - 100));
-      const py = Math.floor(_gr() * (H - 10));
-      const pw = 15 + Math.floor(_gr() * 90);
-      const ph = 2  + Math.floor(_gr() * 5);
+      const px = Math.floor(rand() * (W - 120));
+      const py = Math.floor(rand() * H);
+      const pw = 30 + Math.floor(rand() * 120);
+      const ph = 3  + Math.floor(rand() * 8);
       ctx.save();
-      ctx.globalAlpha = 0.35 + intensity * 0.5;
+      ctx.globalAlpha = 0.45 + intensity * 0.45;
       for(let i = 0; i < pw; i += 2){
-        if(_gr() < 0.4) continue;
-        const b = 80 + Math.floor(_gr() * 175);
-        ctx.fillStyle = `rgb(20,${b},${Math.floor(b*0.4)})`;
+        if(rand() < 0.3) continue;
+        const b = 80 + Math.floor(rand() * 175);
+        ctx.fillStyle = `rgb(0,${b},${Math.floor(b*0.3)})`;
         ctx.fillRect(px + i, py, 2, ph);
       }
       ctx.restore();
@@ -259,182 +263,59 @@ function _drawGlitch(intensity){
 
   // ── 4. Full-width displacement lines ────────────────────────────────────
   {
-    const lines = Math.floor(intensity * intensity * 12);
+    const lines = 3 + Math.floor(intensity * 16);
     for(let l = 0; l < lines; l++){
-      const ly  = Math.floor(_gr() * H);
-      const lh  = 1 + Math.floor(_gr() * 3);
-      const ldx = Math.floor((_gr() - 0.5) * intensity * 60);
-      ctx.save();
-      ctx.globalAlpha = 0.25 + intensity * 0.5;
-      ctx.fillStyle = `rgba(0,${180+Math.floor(_gr()*75)},60,1)`;
+      const ly  = Math.floor(rand() * H);
+      const lh  = 1 + Math.floor(rand() * 4);
+      const ldx = Math.floor((rand() - 0.5) * (12 + intensity * 70));
+      ctx.globalAlpha = 0.35 + intensity * 0.5;
+      ctx.fillStyle = `rgba(0,${160+Math.floor(rand()*95)},60,1)`;
       ctx.fillRect(ldx, ly, W, lh);
-      ctx.restore();
     }
   }
 
-  // ── 5. Vertical tear lines ─────────────────────────────────────────────
-  if(_gr() < intensity * 0.4){
-    const tx = Math.floor(_gr() * W);
-    const ty = Math.floor(_gr() * H * 0.6);
-    const th = 40 + Math.floor(_gr() * H * 0.4);
-    ctx.save();
-    ctx.globalAlpha = 0.6 + intensity * 0.35;
-    ctx.strokeStyle = `rgba(80,255,140,0.9)`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    for(let y = ty; y < ty + th; y += 2){
-      ctx.lineTo(tx + (_gr() - 0.5) * 8, y);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // ── 6. RGB channel split ───────────────────────────────────────────────
-  if(intensity > 0.2 && _gr() < intensity * 0.5){
-    const sy  = Math.floor(_gr() * H);
-    const sh  = 3 + Math.floor(_gr() * 20);
-    const rdx = Math.floor((_gr() - 0.5) * intensity * 30);
-    const bdx = Math.floor((_gr() - 0.5) * intensity * 24);
-    ctx.save();
-    ctx.globalAlpha = 0.3 + intensity * 0.4;
-    ctx.fillStyle = 'rgba(255,40,40,0.9)';
-    ctx.fillRect(rdx, sy, W, sh);
-    ctx.fillStyle = 'rgba(40,40,255,0.9)';
-    ctx.fillRect(bdx, sy + sh, W, sh);
-    ctx.restore();
-  }
-
-  // ── 7. Full-screen flash ───────────────────────────────────────────────
-  if(intensity > 0.65 && _gr() < 0.04){
-    ctx.save();
-    ctx.globalAlpha = 0.12 + _gr() * 0.15;
-    ctx.fillStyle = 'rgba(0,255,80,1)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.restore();
-  }
-
-  // 1. Horizontal slice offsets — glowing bands that displace across the screen
-  if(intensity > 0.05){
-    const numSlices = Math.floor(3 + intensity * 18);
-    const sliceH    = Math.ceil(H / numSlices);
-    for(let s = 0; s < numSlices; s++){
-      if(_gr() > intensity * 0.65) continue;
-      const y   = s * sliceH;
-      const h   = 1 + Math.floor(_gr() * Math.max(2, sliceH * 0.5));
-      const dx  = Math.floor((_gr() - .5) * intensity * 60);
-      if(Math.abs(dx) < 2) continue;
-      // Draw a bright displaced horizontal bar
-      ctx.save();
-      ctx.globalAlpha = 0.18 + intensity * 0.3;
-      const g = ctx.createLinearGradient(dx, 0, dx+W, 0);
-      g.addColorStop(0,   'rgba(0,255,80,0)');
-      g.addColorStop(0.1, `rgba(0,${200+Math.floor(_gr()*55)},${60+Math.floor(_gr()*80)},0.9)`);
-      g.addColorStop(0.9, `rgba(0,${200+Math.floor(_gr()*55)},${60+Math.floor(_gr()*80)},0.9)`);
-      g.addColorStop(1,   'rgba(0,255,80,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(dx, y, W, h);
-      ctx.restore();
-    }
-  }
-
-  // 2. Digital snow — scattered pixels
+  // ── 5. Vertical tears (always at least one) ─────────────────────────────
   {
-    const density = intensity * intensity * 0.012;
-    const count   = Math.floor(W * H * density);
-    ctx.save();
-    for(let i = 0; i < count; i++){
-      const px = Math.floor(_gr() * W);
-      const py = Math.floor(_gr() * H);
-      const b  = 80 + Math.floor(_gr() * 175);
-      ctx.globalAlpha = 0.5 + _gr() * 0.5;
-      ctx.fillStyle   = _gr() < .65
-        ? `rgb(40,${b},${Math.floor(b*.5)})`  // green
-        : `rgb(${b},${b},${b})`;              // white
-      ctx.fillRect(px, py, 1 + (_gr()<.2?1:0), 1);
-    }
-    ctx.restore();
-  }
-
-  // 3. Snow patch clusters
-  {
-    const patches = Math.floor(intensity * intensity * 5);
-    for(let p = 0; p < patches; p++){
-      const px = Math.floor(_gr() * (W - 120));
-      const py = Math.floor(_gr() * (H - 12));
-      const pw = 20 + Math.floor(_gr() * 100);
-      const ph = 2  + Math.floor(_gr() * 6);
+    const tears = 1 + Math.floor(intensity * 4);
+    for(let t = 0; t < tears; t++){
+      const tx = Math.floor(rand() * W);
+      const ty = Math.floor(rand() * H * 0.7);
+      const th = 20 + Math.floor(rand() * H * 0.5);
       ctx.save();
-      ctx.globalAlpha = .25 + intensity * .4;
-      for(let i = 0; i < pw; i += 2){
-        if(_gr() < .45) continue;
-        const b = 60 + Math.floor(_gr() * 195);
-        ctx.fillStyle = `rgb(20,${b},${Math.floor(b*.45)})`;
-        ctx.fillRect(px+i, py, 2, ph);
+      ctx.globalAlpha = 0.55 + intensity * 0.4;
+      ctx.strokeStyle = `rgba(60,255,120,0.95)`;
+      ctx.lineWidth = 1 + Math.floor(rand() * 2);
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      for(let y = ty; y < ty + th; y += 2){
+        ctx.lineTo(tx + (rand() - 0.5) * (4 + intensity * 14), y);
       }
+      ctx.stroke();
       ctx.restore();
     }
   }
 
-  // 4. Horizontal displacement lines (full-width, shifted)
+  // ── 6. RGB channel split (always) ─────────────────────────────────────
   {
-    const lines = Math.floor(intensity * intensity * 10);
-    for(let l = 0; l < lines; l++){
-      const ly  = Math.floor(_gr() * H);
-      const lh  = 1 + Math.floor(_gr() * 3);
-      const ldx = Math.floor((_gr()-.5) * intensity * 50);
-      ctx.save();
-      ctx.globalAlpha = .15 + intensity * .25;
-      ctx.fillStyle   = `rgba(0,${200+Math.floor(_gr()*55)},80,1)`;
-      ctx.fillRect(ldx, ly, W, lh);
-      ctx.restore();
-    }
-  }
-
-  // 5. Vertical tear lines
-  if(_gr() < intensity * 0.3){
-    const tx = Math.floor(_gr() * W);
-    const ty = Math.floor(_gr() * H * .6);
-    const th = 30 + Math.floor(_gr() * H * .35);
-    ctx.save();
-    ctx.globalAlpha = .5 + intensity * .4;
-    ctx.strokeStyle = `rgba(60,255,120,${.6+_gr()*.4})`;
-    ctx.lineWidth   = 1;
-    ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    for(let y = ty; y < ty+th; y += 3){
-      ctx.lineTo(tx + (_gr()-.5)*6, y);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // 6. RGB channel split
-  if(intensity > 0.25 && _gr() < intensity * .45){
-    const sy  = Math.floor(_gr() * H);
-    const sh  = 3 + Math.floor(_gr() * 18);
-    const rdx = Math.floor((_gr()-.5) * intensity * 24);
-    const bdx = Math.floor((_gr()-.5) * intensity * 18);
-    ctx.save();
-    ctx.globalAlpha = .2 + intensity * .25;
-    ctx.fillStyle = 'rgba(255,40,40,.8)';
+    const sy  = Math.floor(rand() * H);
+    const sh  = 4 + Math.floor(rand() * 24);
+    const rdx = Math.floor((rand() - 0.5) * (8 + intensity * 44));
+    const bdx = Math.floor((rand() - 0.5) * (6 + intensity * 34));
+    ctx.globalAlpha = 0.25 + intensity * 0.45;
+    ctx.fillStyle = 'rgba(255,30,30,1)';
     ctx.fillRect(rdx, sy, W, sh);
-    ctx.fillStyle = 'rgba(40,40,255,.8)';
-    ctx.fillRect(bdx, sy+sh, W, sh);
-    ctx.restore();
+    ctx.fillStyle = 'rgba(30,30,255,1)';
+    ctx.fillRect(bdx, sy + sh, W, sh);
   }
 
-  // 7. Full-screen flash (rare, high intensity only)
-  if(intensity > .7 && _gr() < .03){
-    ctx.save();
-    ctx.globalAlpha = .08 + _gr() * .12;
-    ctx.fillStyle   = 'rgba(0,255,80,1)';
-    ctx.fillRect(0,0,W,H);
-    ctx.restore();
+  // ── 7. Full-screen flicker (low intensity = rare, high = occasional) ────
+  if(rand() < 0.04 + intensity * 0.1){
+    ctx.globalAlpha = 0.06 + rand() * 0.14;
+    ctx.fillStyle = 'rgba(0,255,60,1)';
+    ctx.fillRect(0, 0, W, H);
   }
 }
 
-// ── RAF LOOP ──────────────────────────────────────────────────────────────
 function _rafLoop(){
   if(!_glitchActive){ _glitchRafId = null; return; }
   const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
