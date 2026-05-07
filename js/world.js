@@ -44,7 +44,7 @@ function applyNetLoadout(progList){
   updateApplyBtn(progList);
 }
 
-// MESH v0.7.1 — world.js
+// MESH v0.7.4 — world.js
 // ======================
 // Real world layer: home screen, email stubs, recovery, context before jack-in
 
@@ -730,12 +730,37 @@ function renderMeshView(){
     el.appendChild(vList);
   }
 }
+function doTeleport(){
+  const txEl = document.getElementById('tp-x');
+  const tyEl = document.getElementById('tp-y');
+  const stEl = document.getElementById('tp-status');
+  if(!txEl||!tyEl) return;
+  const tx = parseInt(txEl.value)||0;
+  const ty = parseInt(tyEl.value)||0;
+  if(tx < 0 || ty < 0){ if(stEl) stEl.textContent='Coordinates must be non-negative.'; stEl.style.color='#c04040'; return; }
+  const tDist = typeof meshDistance==='function' ? meshDistance(tx,ty) : 0;
+  const range = teleportRange();
+  if(tDist > range){
+    if(stEl){ stEl.textContent=`Out of range (dist ${tDist.toFixed(1)} > ${range}).`; stEl.style.color='#c04040'; }
+    return;
+  }
+  if(stEl){ stEl.textContent=`Teleporting to ${typeof netKey==='function'?netKey(tx,ty):'?'}…`; stEl.style.color='#6060ff'; }
+  setTimeout(()=>travelToNet(tx,ty), 200);
+}
+
 function canLeavNet(){
-  // Must clear FF in current net before traversing to a new one
   if(!S.mesh?.currentNet) return true;
   const ns = typeof currentNetState==='function' ? currentNetState() : null;
   if(!ns) return true;
+  // Ascended weavers gain Teleport — can leave any net without completing FF
+  if(typeof ascensionCount==='function' && ascensionCount() >= 1) return true;
   return ns.completedNodes.includes('FF');
+}
+
+function teleportRange(){
+  // Range = (ascension count + 1)^2
+  const ac = typeof ascensionCount==='function' ? ascensionCount() : 0;
+  return Math.pow(ac + 1, 2);
 }
 
 function travelToNet(x, y){
@@ -998,6 +1023,15 @@ function enterNet(x, y){
     );
     ns.layout.forEach(row => row.forEach(node => {
       if(node.ice && !validICE.has(node.ice)) node.ice = null;
+    }));
+  }
+
+  // Stamp faction onto every layout node (single source of truth for color+contract)
+  {
+    const _fkeys = Object.keys(ns.companies||{});
+    if(_fkeys.length) ns.layout.forEach((row,r) => row.forEach((node,col) => {
+      const _s = ((x*7919 + y*1000003 + (col*16+r)*97) >>> 0) % _fkeys.length;
+      node.faction = _fkeys[_s];
     }));
   }
 

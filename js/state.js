@@ -80,12 +80,16 @@ function autoLoadout(contract){
   tryInstall(bestOwned('scan'));
 
   // ── BREAKERS (by danger priority) ────────────────────────────────────
-  // Killer handles Guardian + Hunter (most dangerous) — install first
-  tryInstall(bestBreakerOwned('GUARDIAN'));
-  // Fracter for Barrier
-  tryInstall(bestBreakerOwned('BARRIER'));
-  // Decoder for Gatekeeper (always present)
-  tryInstall(bestBreakerOwned('GATEKEEPER'));
+  // Core breakers — ICE types in priority order by danger
+  tryInstall(bestBreakerOwned('GUARDIAN'));   // Killer — Guardian/Hunter
+  tryInstall(bestBreakerOwned('BARRIER'));    // Fracter — Barrier
+  tryInstall(bestBreakerOwned('GATEKEEPER'));// Decoder — Gatekeeper
+  tryInstall(bestBreakerOwned('BLACK_ICE')); // Hammer — Black ICE/Cascade
+  tryInstall(bestBreakerOwned('PROBE'));      // Slicer — Probe/Tracer
+  tryInstall(bestBreakerOwned('TAR_PIT'));    // Anchor — Tar Pit
+  tryInstall(bestBreakerOwned('KRAKEN'));     // Titan — Kraken/Architect
+  tryInstall(bestBreakerOwned('MIMIC'));      // Phantom — Mimic
+  tryInstall(bestBreakerOwned('LEECH'));      // Void — Leech/Omega
 
   // ── UTILITY fill (priority order) ────────────────────────────────────
   const utilOrder=isStealthy
@@ -97,8 +101,35 @@ function autoLoadout(contract){
     tryInstall(bestOwned(effect));
   }
 
+  // ── Fill remaining RAM: install all owned programs best-tier-first ──
+  // Only skip exact duplicates (same defId already installed)
+  const _installedDefIds = new Set(
+    S.installed.map(iid=>S.inventory.find(x=>x.instId===iid)?.defId).filter(Boolean)
+  );
+  const _allUninstalled = S.inventory
+    .filter(it => { const d=pdef(it.defId); return d && !it.installed && d.mem>0; })
+    .sort((a,b) => (pdef(b.defId)?.tier||0) - (pdef(a.defId)?.tier||0));
+
+  for(const item of _allUninstalled){
+    if(ramUsed()>=ramMax()) break;
+    const d=pdef(item.defId);
+    if(!d) continue;
+    // Only skip if this exact program is already installed (same defId = same version)
+    if(_installedDefIds.has(item.defId)) continue;
+    if(tryInstall(item)) _installedDefIds.add(item.defId);
+  }
+
   renderDeck();renderTopBar();
-  addLog(`◈ Loadout: ${S.installed.length} programs, ${ramUsed()}/${ramMax()} RAM`,'li');
+  // Detailed loadout log
+  const _skipped=S.inventory.filter(it=>{
+    const d=pdef(it.defId); return d&&!it.installed&&d.mem>0;
+  });
+  if(_skipped.length){
+    const _skipNames=_skipped.slice(0,4).map(it=>pdef(it.defId)?.name||'?').join(', ');
+    addLog(`◈ Loadout: ${S.installed.length} programs, ${ramUsed()}/${ramMax()} RAM | skipped: ${_skipped.length} (${_skipNames}${_skipped.length>4?'…':''})`, 'li');
+  } else {
+    addLog(`◈ Loadout: ${S.installed.length} programs, ${ramUsed()}/${ramMax()} RAM — fully packed`, 'li');
+  }
 }
 
 function autoSelectContracts(){
@@ -235,6 +266,7 @@ function launchAutoNetRun(){
   }
   // Enter the node
   if(typeof enterNode==='function') enterNode(addr);
+
   return true;
 }
 
@@ -338,7 +370,9 @@ function loadAutoRunPref(){
   // Unlocked if: localStorage flag set OR S.mesh.traversalUnlocked is true (from save)
   const lsUnlocked = (()=>{ try{ return localStorage.getItem('mesh_autorun_unlocked')==='1'; }catch(e){return false;} })();
   const saveUnlocked = !!(S.mesh?.traversalUnlocked);
-  const unlocked = lsUnlocked || saveUnlocked;
+  // Ascended weavers always have autorun
+  const ascUnlocked = typeof ascensionCount==='function' && ascensionCount() >= 1;
+  const unlocked = lsUnlocked || saveUnlocked || ascUnlocked;
 
   if(unlocked){
     // Ensure localStorage is in sync

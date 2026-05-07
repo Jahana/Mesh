@@ -1,4 +1,4 @@
-// MESH v0.7.1 — save.js
+// MESH v0.7.4 — save.js
 // ===================
 
 const SAVE_VER=1;
@@ -116,7 +116,7 @@ function applyLoad(data){
     S.mesh.visitedNets.forEach(ns=>{
       ns.layout = null;
       ns.layoutVersion = null;
-      // Wipe companies if they lack the key field (pre-v0.7.1 saves)
+      // Wipe companies if they lack the key field (pre-v0.7.4 saves)
       const hasKeys = Object.values(ns.companies||{}).flat().every(c=>c.key);
       if(!hasKeys) ns.companies = null;
     });
@@ -232,6 +232,18 @@ function titleContinue(slot){
     if(typeof checkQuestTriggers==='function') checkQuestTriggers();
     if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
     if(typeof initStory==='function') initStory();
+    // Re-stamp faction on layout nodes (may be missing on old saves)
+    if(S.mesh?.currentNet){
+      const _ns = typeof currentNetState==='function' ? currentNetState() : null;
+      if(_ns?.layout && _ns.companies){
+        const _fkeys = Object.keys(_ns.companies);
+        const _x = S.mesh.currentNet.x, _y = S.mesh.currentNet.y;
+        if(_fkeys.length) _ns.layout.forEach((row,r) => row.forEach((node,col) => {
+          const _s = ((_x*7919 + _y*1000003 + (col*16+r)*97) >>> 0) % _fkeys.length;
+          node.faction = _fkeys[_s]; // always re-stamp to fix stale data
+        }));
+      }
+    }
     // If mid-run save, restore run view
     if(S.running){
       if(typeof renderAll==='function') renderAll();
@@ -304,7 +316,7 @@ function titleStartNew(overwriteSlot){
   _autoSlot=slot;
   if(!S.mesh) S.mesh = (typeof mkMeshState==='function')?mkMeshState():null;
   if(!S.world) S.world = (typeof mkWorldState==='function')?mkWorldState():null;
-  addLog('▶ NEW GAME — MESH OS v0.7.1','li');
+  addLog('▶ NEW GAME — MESH OS v0.7.4','li');
   addLog('"All the nets that ever were, are, or will be make up the Mesh"','li');
   generateBoard();renderAll();
   hideTitle();
@@ -317,6 +329,18 @@ function titleStartNew(overwriteSlot){
     if(typeof checkQuestTriggers==='function') checkQuestTriggers();
     if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
     if(typeof initStory==='function') initStory();
+    // Re-stamp faction on layout nodes (may be missing on old saves)
+    if(S.mesh?.currentNet){
+      const _ns = typeof currentNetState==='function' ? currentNetState() : null;
+      if(_ns?.layout && _ns.companies){
+        const _fkeys = Object.keys(_ns.companies);
+        const _x = S.mesh.currentNet.x, _y = S.mesh.currentNet.y;
+        if(_fkeys.length) _ns.layout.forEach((row,r) => row.forEach((node,col) => {
+          const _s = ((_x*7919 + _y*1000003 + (col*16+r)*97) >>> 0) % _fkeys.length;
+          node.faction = _fkeys[_s]; // always re-stamp to fix stale data
+        }));
+      }
+    }
     // If mid-run save, restore run view
     if(S.running){
       if(typeof renderAll==='function') renderAll();
@@ -376,7 +400,7 @@ function startNewGame(){
   S.integrity=maxInt();
   ['gen','corp','crim','anarch'].forEach(f=>initShop(f));
   S.selectedBlueprint=null;
-  addLog('▶ NEW GAME — MESH OS v0.7.1','li');addLog('Select contracts to begin','li');
+  addLog('▶ NEW GAME — MESH OS v0.7.4','li');addLog('Select contracts to begin','li');
   generateBoard();renderAll();showTab('run');
   startAutoRunCountdown();
 }

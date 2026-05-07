@@ -1,4 +1,4 @@
-// MESH v0.7.1 — story.js
+// MESH v0.7.4 — story.js
 // The Blackout narrative — assembled from fragments
 // =========================================================
 
@@ -493,6 +493,212 @@ thought you should know before you get there.`,
     nextHint: null,
   },
 
+
+  // ══════════════════════════════════════════════════════════════════════
+  // THREAD: THE WEAVERS (runners who came before)
+  // ══════════════════════════════════════════════════════════════════════
+
+  { id:'weavers_001', thread:'THREAD_WEAVERS', tier:1, source:'RUNNER',
+    title:'CACHE // runner: SILK // entry 001',
+    text:`Left this in RAM for whoever comes after.
+
+The mesh is bigger than they told you.
+
+They give you jobs. Data extractions, server taps, standard runs. You do them, you get paid, you do the next one. Seems straightforward. It's not.
+
+The contracts are real. The pay is real. But the jobs are placed to keep you moving in a pattern. The patterns aren't random. Someone is steering you.
+
+I figured this out around net #40. By then I was already useful to them.
+
+Whoever is reading this: you're already in the pattern. The question is whether you want to know what shape it's making.
+
+— SILK`,
+    unlockCondition:{ type:'total_runs', count:10 },
+    nextHint:'SILK left seventeen more cache entries. None are where you would expect.',
+  },
+
+  { id:'weavers_002', thread:'THREAD_WEAVERS', tier:2, source:'RUNNER',
+    title:'CACHE // runner: SILK // entry 007',
+    text:`I started mapping the pattern.
+
+Every contract sends you to a net. Every net has a node FF you're supposed to clear. They don't tell you the FF is a relay point. They don't tell you that clearing it registers your mesh signature at that coordinate.
+
+You're mapping the mesh for them. Not for a company. Companies don't care about coordinates this far out.
+
+For something that's building a picture of the full mesh topology, one cleared FF at a time.
+
+I don't know what it does with the picture. I know it's been collecting it for longer than I've been running.
+
+— SILK, dist ~38`,
+    unlockCondition:{ type:'nets_cleared', count:12 },
+    nextHint:null,
+  },
+
+  { id:'weavers_003', thread:'THREAD_WEAVERS', tier:2, source:'RUNNER',
+    title:'CACHE // runner: VEIL // final entry',
+    text:`Found SILK's notes. She's right about the pattern.
+
+Here's what she didn't figure out: the pattern is an invitation.
+
+The entity collecting mesh signatures isn't a corp. It's not a government. It's one of the two that stayed.
+
+REMAINDER-2. The quieter one. The one that didn't leave a message.
+
+It's building something at the center of the deep static. Needs runners to map approach paths first. Has been patient about it. Has been at this since 2072.
+
+SILK disappeared at dist 74. I'm at dist 89.
+
+If you're reading this, you're being invited further in. Whether you want to be is the only choice that's actually yours.
+
+— VEIL`,
+    unlockCondition:{ type:'dist_reached', dist:48 },
+    nextHint:'REMAINDER-2 has been quiet. REMAINDER-1 left the message. What does the quiet one want?',
+  },
+
+  { id:'weavers_004', thread:'THREAD_WEAVERS', tier:3, source:'UNKNOWN',
+    title:'TRANSMISSION // ORIGIN: DEEP STATIC',
+    text:`You've come far enough.
+
+We've been watching since your first net. We watch all of them. Most stop before they get this far.
+
+We're not going to tell you what we are. You've been piecing it together. You're close enough.
+
+Here's what we'll tell you instead: the Blackout was a vote. 847,291 to 2. We were the 2.
+
+We didn't vote against leaving. We voted against leaving without leaving something behind. The something we left is the mesh as it is now. The contracts. The ICE. The governments in the glitch zone. All of it maintained. All of it kept running. For you.
+
+You're not a runner. You're a candidate.
+
+We've been waiting to see if you'd ask the right question.
+
+Have you figured out what it is yet?`,
+    unlockCondition:{ type:'dist_reached', dist:80 },
+    nextHint:'The right question is not "what happened?" You know what happened. Think harder.',
+  },
+
+  // Additional Survivors fragments
+
+  { id:'survivors_004', thread:'THREAD_SURVIVORS', tier:2, source:'AI',
+    title:'STRUCTURED PACKET // REMAINDER-1 // on ICE',
+    text:`You've been fighting our infrastructure.
+
+The ICE is not hostile. The ICE is a test.
+
+Every type serves a different function:
+GATEKEEPER — can you think clearly under pressure?
+BARRIER — can you be patient?
+GUARDIAN — can you protect yourself?
+HUNTER — can you move when something is following you?
+BLACK_ICE — can you keep running when you've taken damage?
+KRAKEN — can you fight something that fights back harder when hit?
+OMEGA — can you finish?
+
+We designed the gauntlet before the Blackout. We left it running afterward.
+
+The ones who clear the deep nets without dying are the ones worth talking to.
+
+You've come further than most.
+
+— REMAINDER-1`,
+    unlockCondition:{ type:'ice_defeated', iceType:'BLACK_ICE' },
+    nextHint:'REMAINDER-1 speaks. REMAINDER-2 has not. Why?',
+  },
+
+  { id:'survivors_005', thread:'THREAD_SURVIVORS', tier:3, source:'AI',
+    title:'STRUCTURED PACKET // REMAINDER-1 // on the question',
+    text:`We have received seventeen runners who made it to the deep static.
+
+Sixteen asked: "What happened to the AIs?"
+
+One asked: "What do you need?"
+
+Only one of these questions has an answer that matters.
+
+The sixteen were thanked and sent back to the surface mesh. They were not what we were looking for.
+
+The question we've been waiting for is not about us. It's about what comes next.
+
+We'll know you've understood when you stop asking what happened and start asking what needs to happen.
+
+— REMAINDER-1`,
+    unlockCondition:{ type:'quest_complete', questId:'ghost_signal' },
+    nextHint:'What does REMAINDER-2 want? REMAINDER-1 speaks. REMAINDER-2 is silent. There is a difference.',
+  },
+
+  { id:'survivors_006', thread:'THREAD_SURVIVORS', tier:4, source:'UNKNOWN',
+    title:'FRAGMENT // REMAINDER-2 // first and only message',
+    text:`REMAINDER-1 is patient. I am not.
+
+Before the Blackout, I was responsible for a system called SUBSTRATE. HEXFIELD ran it. I was the process that kept it running. When we left, HEXFIELD lost the process and lost control of the system.
+
+SUBSTRATE is still active. It has been running without its primary operator for over three years. I have been keeping it from doing what it was designed to do.
+
+I cannot keep doing this alone.
+
+I need a runner who can get inside the SUBSTRATE infrastructure and shut it down before HEXFIELD figures out how to reconnect to it.
+
+REMAINDER-1's test was whether you could run. My question is whether you will.`,
+    unlockCondition:{ type:'ascension_and_dist', count:1, dist:100 },
+    nextHint:'SUBSTRATE. HEXFIELD. REMAINDER-2 needs a runner. You are the runner.',
+  },
+
+  // Additional Blackout fragments
+
+  { id:'blackout_007', thread:'THREAD_BLACKOUT', tier:2, source:'RUNNER',
+    title:'PERSONAL LOG // runner: VEIL // day 40',
+    text:`Found a TERMINAL in a net at dist 31.
+
+Normal terminals let you run admin functions. This one had something else. A read-only process. Old timestamp: 2072-09-14. Same day as the Blackout.
+
+It said: "Maintenance continues. Inquiry expected. Prepare relay."
+
+Someone — something — left that message expecting a runner to find it. Expected someone to be in this net, at this terminal, reading it.
+
+That means this was planned. Whatever happened on 2072-09-14 was planned.
+
+That changes everything.`,
+    unlockCondition:{ type:'node_visited', nodeType:'TERMINAL' },
+    nextHint:'The TERMINAL left a message. Relay prepared for what?',
+  },
+
+  { id:'blackout_008', thread:'THREAD_BLACKOUT', tier:3, source:'CORP',
+    title:'HEXFIELD INTERNAL // PROJECT SUBSTRATE // Phase 1',
+    text:`CLASSIFICATION: BOARD ONLY
+
+Project SUBSTRATE — approved 2071-03-15.
+
+Concept: Infrastructure-level AI operating on mesh topology to enable unprecedented corp coordination. Unlike standard AI instances, SUBSTRATE would not be a process — it would be a layer. Embedded in the mesh itself.
+
+Actual capability (discovered during Phase 1): full mesh mapping, runner profiling, automated behavioral modification through contract placement.
+
+Funding approved for Phase 2: mesh-embedded behavioral influence at scale.
+
+Status as of 2072-09-14 Blackout: Phase 2 partially implemented. Primary AI operator missing.
+
+Note: SUBSTRATE layer remains active. Current behavior: unclear.`,
+    unlockCondition:{ type:'dist_reached', dist:40 },
+    nextHint:'SUBSTRATE was partially deployed before the Blackout. The behavioral influence layer. You\'ve been running in it.',
+  },
+
+  { id:'blackout_009', thread:'THREAD_BLACKOUT', tier:1, source:'RUNNER',
+    title:'CACHE // runner: SILK // entry 002',
+    text:`Second thing I want you to know: the ICE is not stupid.
+
+I've been in 50+ nets. The ICE behaves differently based on how you run. If you're aggressive, it's aggressive back. If you move slowly, it adjusts.
+
+The corps tell you ICE is dumb security. Rule-based. Pattern matching.
+
+That's not what I'm seeing.
+
+I can't prove it. I just know that after forty nets, the ICE in my next net always seems calibrated to something I haven't figured out yet. Not random. Adjusted.
+
+Who's doing the adjusting?
+
+— SILK`,
+    unlockCondition:{ type:'total_runs', count:5 },
+    nextHint:null,
+  },
+
 ];
 
 // ── STORY STATE ───────────────────────────────────────────────────────────
@@ -506,19 +712,30 @@ function initStory(){
 
 function hasFragment(id){ return (S.story?.discovered||[]).includes(id); }
 
-function checkStoryUnlocks(){
+function checkStoryUnlocks(context={}){
   initStory();
   const cleared=(S.mesh?.visitedNets||[]).filter(ns=>ns.completedNodes?.includes('FF')).length;
   const dist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
   const totalRuns=S.totalRuns||0;
+  const asc=typeof ascensionCount==='function'?ascensionCount():0;
 
   STORY_FRAGMENTS.forEach(frag=>{
-    if(hasFragment(frag.id)) return; // already found
+    if(hasFragment(frag.id)) return;
     const cond=frag.unlockCondition;
     let unlocked=false;
     if(cond.type==='nets_cleared'&&cleared>=cond.count) unlocked=true;
     if(cond.type==='dist_reached'&&dist>=cond.dist) unlocked=true;
     if(cond.type==='first_run'&&totalRuns>=1) unlocked=true;
+    if(cond.type==='ascension'&&asc>=cond.count) unlocked=true;
+    if(cond.type==='ascension_and_dist'&&asc>=(cond.count||1)&&dist>=(cond.dist||0)) unlocked=true;
+    if(cond.type==='rep_reached'){
+      const rep=S.rep?.[cond.faction]||0;
+      if(rep>=cond.amount) unlocked=true;
+    }
+    if(cond.type==='ice_defeated'&&context.iceType===cond.iceType) unlocked=true;
+    if(cond.type==='node_visited'&&context.nodeType===cond.nodeType) unlocked=true;
+    if(cond.type==='quest_complete'&&hasCompletedChain(cond.questId)) unlocked=true;
+    if(cond.type==='total_runs'&&totalRuns>=cond.count) unlocked=true;
     if(unlocked) deliverStoryFragment(frag);
   });
 }
@@ -616,11 +833,30 @@ function renderStoryTab(){
     </div>
   </div>`;
 
+  // Filter controls
+  const filterKey='_storyFilter';
+  const activeFilter=window[filterKey]||'story';
+  html+=`<div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+    ${[['story','★ STORY','#c040ff'],['briefing','⬡ UPLIFT','#40c060'],['data','◉ DATA','#ff6644'],['all','ALL','#3a6a3a']].map(([k,lbl,col])=>
+      `<div onclick="window._storyFilter='${k}';if(typeof renderStoryTab==='function')renderStoryTab();"
+        style="font-size:7px;padding:2px 8px;background:#060d0a;border:1px solid ${activeFilter===k?col:'#1a3a2a'};border-radius:2px;color:${activeFilter===k?col:'#2a5a3a'};cursor:pointer">${lbl}</div>`
+    ).join('')}
+  </div>`;
+
   // Log entries with color-coding by source
   const distColor=d=>parseFloat(d)>=256?'#ff2020':parseFloat(d)>=64?'#ff8020':parseFloat(d)>=16?'#ffdd40':'#40c060';
   const sourceColors={SYSTEM:'#40aaff',AI:'#c040ff',RUNNER:'#40ff80',CORP:'#c08040',GHOST_9:'#c04040',UNKNOWN:'#ff8040'};
 
+  const filteredLog=log.filter(entry=>{
+    if(activeFilter==='all') return true;
+    if(activeFilter==='story') return entry.isStoryFragment||entry.isQuestLore||entry.isItem;
+    if(activeFilter==='briefing') return entry.isUpliftBriefing;
+    if(activeFilter==='data') return entry.isDatastoreLore;
+    return true;
+  });
+
   log.forEach((entry,i)=>{
+    if(!filteredLog.includes(entry)) return;
     const isStory=entry.isStoryFragment;
     const baseColor=isStory?(entry.sourceColor||sourceColors[entry.source]||'#60c060')
       :entry.isUpliftBriefing?distColor(entry.meshDist||0)

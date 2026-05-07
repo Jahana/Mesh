@@ -1,4 +1,4 @@
-// MESH v0.7.1 — ascension.js
+// MESH v0.7.4 — ascension.js
 // Uplift Ascension: the progression loop beyond the first playthrough
 // ===================================================================
 //

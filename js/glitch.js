@@ -1,4 +1,4 @@
-// MESH v0.7.1 — glitch.js
+// MESH v0.7.4 — glitch.js
 // Glitch Zone Government System + Visual Overlay
 // ================================================================
 
@@ -52,6 +52,17 @@ function distToGovIndex(dist){
 
 // Get the government(s) for a given dist
 // dist 56-63: all 4 superpowers (govs 28-31) jointly control the zone
+// ── STATIC LAYER IDENTITY ────────────────────────────────────────────────
+// dist 64-255: No glitch, but AI entities and abandoned infrastructure
+// dist 256+: Pure AI Territory — uncharted
+
+function getStaticLayerTier(dist){
+  if(dist<64)  return null;
+  if(dist<128) return 'remnant';   // Abandoned corp infrastructure
+  if(dist<192) return 'sentinel';  // AI guardian nodes
+  return 'deep';                   // True static — pre-Blackout architecture
+}
+
 function getDistGovernments(dist){
   const idx = distToGovIndex(dist);
   if(idx === null) return [];

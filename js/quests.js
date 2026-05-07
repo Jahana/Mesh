@@ -85,8 +85,8 @@ const QUEST_CHAINS = [
         id: 'gs_4',
         emailId: 'ghost_signal_4',
         type: 'rep_faction',
-        desc: 'Build Neutral faction rep to 500 (Trusted) — the contact needs to know you\'re reliable',
-        target: { faction: 'neutral', repRequired: 500 },
+        desc: 'Build Neutral faction rep to 250 — the contact needs to know you\'re reliable',
+        target: { faction: 'neutral', repRequired: 250 },
         autorunOverride: { targetFaction: 'neutral', blockFF: false },
       },
       {
@@ -167,7 +167,7 @@ const QUEST_CHAINS = [
 
   // ── CHAIN 3: ANARCHIST UNDERGROUND ─────────────────────────────────────
   // An anarch collective needs a runner who doesn't ask questions.
-  // 7 steps — longest chain, reaches deep mesh.
+  // 5 steps — compact, stays in reachable glitch zone.
   {
     id: 'anarch_underground',
     title: 'Anarchist Underground',
@@ -189,49 +189,33 @@ const QUEST_CHAINS = [
         id: 'au_2',
         emailId: 'anarch_underground_2',
         type: 'rep_faction',
-        desc: 'Earn Trusted rep (500) with Anarch — they don\'t work with unknowns',
-        target: { faction: 'anarch', repRequired: 500 },
+        desc: 'Earn Trusted rep (300) with Anarch — they don\'t work with unknowns',
+        target: { faction: 'anarch', repRequired: 300 },
         autorunOverride: { targetFaction: 'anarch', blockFF: false },
       },
       {
         id: 'au_3',
         emailId: 'anarch_underground_3',
         type: 'reach_coords',
-        desc: 'Move into glitch territory (dist 24+) — the cell operates in the static',
-        target: { minDist: 24, maxDist: 48 },
-        autorunOverride: { targetDist: { min: 24, max: 48 }, blockFF: false },
+        desc: 'Move into glitch territory (dist 16+) — the cell operates in the static',
+        target: { minDist: 16, maxDist: 32 },
+        autorunOverride: { targetDist: { min: 16, max: 32 }, blockFF: false },
       },
       {
         id: 'au_4',
         emailId: 'anarch_underground_4',
         type: 'find_lore',
-        desc: 'Find the hidden cache — scan 4 datastores in the deep glitch region',
-        target: { minDist: 24, maxDist: 48, nodeType: 'DATASTORE', count: 4 },
-        autorunOverride: { targetDist: { min: 24, max: 48 }, priorityNodeType: 'DATASTORE', blockFF: true },
+        desc: 'Find the hidden cache — scan 2 datastores in the glitch region',
+        target: { minDist: 16, maxDist: 32, nodeType: 'DATASTORE', count: 2 },
+        autorunOverride: { targetDist: { min: 16, max: 32 }, priorityNodeType: 'DATASTORE', blockFF: true },
       },
       {
         id: 'au_5',
         emailId: 'anarch_underground_5',
-        type: 'run_contracts',
-        desc: 'Hit Corp nets in the region — the cell needs leverage over Hexfield',
-        target: { faction: 'corp', count: 5, minDist: 24, maxDist: 48 },
-        autorunOverride: { targetFaction: 'corp', targetDist: { min: 24, max: 48 }, blockFF: false },
-      },
-      {
-        id: 'au_6',
-        emailId: 'anarch_underground_6',
         type: 'find_item',
-        desc: 'Breach the TERMINAL node the cell identified — plant the backdoor',
-        target: { minDist: 24, maxDist: 48, nodeType: 'TERMINAL', count: 1 },
-        autorunOverride: { targetDist: { min: 24, max: 48 }, priorityNodeType: 'TERMINAL', blockFF: true },
-      },
-      {
-        id: 'au_7',
-        emailId: 'anarch_underground_7',
-        type: 'clear_net',
-        desc: 'Clear a net at dist 32+ — the cell needs the exit node as a relay point',
-        target: { minDist: 32, maxDist: 64 },
-        autorunOverride: { targetDist: { min: 32, max: 64 }, blockFF: false },
+        desc: 'Breach a TERMINAL node — plant the backdoor before the corps notice',
+        target: { minDist: 16, maxDist: 32, nodeType: 'TERMINAL', count: 1 },
+        autorunOverride: { targetDist: { min: 16, max: 32 }, priorityNodeType: 'TERMINAL', blockFF: true },
         reward: { cred: 25000, lore: 'anarch_underground_lore', repBonus: { faction: 'anarch', amount: 800 } },
       },
     ],
@@ -503,8 +487,8 @@ when you hit 500, i'll send the real address.
 the cell operates in glitch territory. we moved there after the corps started 
 mapping clean mesh — too many eyes at dist 15 and under.
 
-get to dist 24-48. it's loud in there. weird. the layouts don't always make 
-sense and the ICE hits harder than it should. 
+get to dist 16+. it's loud in there. weird. the layouts don't always make 
+sense and the ICE hits harder than it should.
 
 that's where we live now.
 
@@ -524,8 +508,8 @@ we buried something in the datastores out here. supplies, tools, fragments we
 pulled from corp nets before they locked us out. it's spread across multiple 
 nodes so no single breach exposes everything.
 
-scan four datastores in this region. you won't know what you found until you 
-pull all four. the pieces only make sense together.
+scan two datastores in this region. you won't know what you found until you 
+pull both. the pieces only make sense together.
 
 don't leave the region. don't go near FF. we need you here.
 
@@ -536,17 +520,20 @@ don't leave the region. don't go near FF. we need you here.
 
   anarch_underground_5: {
     from: 'GHOST_9 // ghost9@nowhere',
-    subject: 'hit hexfield',
+    subject: 'the terminal',
     body: `what you found in the cache: proof.
 
-hexfield corp has been suppressing mesh access in anarch territory. 
-bandwidth throttling at the node level. they've been doing it since the blackout, 
+hexfield corp has been suppressing mesh access in anarch territory.
+bandwidth throttling at the node level. they've been doing it since the blackout,
 billing corps for "stability maintenance" while starving everyone else.
 
-we need leverage. run corp nets in this area. specifically hexfield-adjacent 
-contracts. five of them. take everything that looks like an audit log.
+we identified a terminal node hexfield uses as a relay checkpoint. it's in this
+region — you've probably run past it without knowing what it was.
 
-don't be careful about it. we want them to know someone is looking.
+we need a backdoor planted in it. a persistent one that survives ICE reset cycles.
+you don't need to know what it does. you just need to breach the terminal.
+
+don't uplift out of this zone. the terminal is here. find it.
 
 — 9`,
     questChainId: 'anarch_underground',
@@ -1191,22 +1178,6 @@ function _findEmailById(emailId){
 }
 
 // Trigger proc quest generation periodically (after nets cleared)
-function checkProcQuestTrigger(){
-  if(!S.mesh?.traversalUnlocked) return;
-  if(S.quests?.active) return; // busy with a chain
-  const cleared=(S.mesh?.visitedNets||[]).filter(ns=>ns.completedNodes?.includes('FF')).length;
-  if(cleared<1) return;
-  if(!S.quests) return;
-  // Cooldown: one proc quest per 3 nets cleared, track when last was offered
-  const lastAt = S.quests._lastProcQuestAt||0;
-  const interval = 3;
-  if(cleared-lastAt < interval) return;
-  S.quests._lastProcQuestAt = cleared;
-  createProcChain();
-}
-
-// ── QUEST STATE ──────────────────────────────────────────────────────────
-
 function initQuests(){
   if(!S.quests) S.quests = { active: null, completedChains: [], progress: {}, nodeTypesHit: {} };
 }
@@ -1543,7 +1514,20 @@ function renderQuestStatus(){
   let progressStr='';
   if(step.type==='run_contracts') progressStr=`${prog.contractCount||0}/${tgt.count}`;
   else if(step.type==='rep_faction') progressStr=`${S.rep?.[tgt.faction]||0}/${tgt.repRequired} rep`;
-  else if(step.type==='find_lore'||step.type==='find_item') progressStr=`${prog.nodeCount||0}/${tgt.count}`;
+  else if(step.type==='find_lore'||step.type==='find_item'){
+    const _curDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    const _inRange=(_curDist>=(tgt.minDist||0))&&(_curDist<=(tgt.maxDist||999));
+    const _nodeLabel=tgt.nodeType||'node';
+    // Check if target node type is visible in current net
+    let _localHint='';
+    if(_inRange&&S.grid){
+      const _found=S.grid.flat().filter(cell=>cell&&cell.nodeType===_nodeLabel&&!cell.visited);
+      if(_found.length) _localHint=` — ${_found.length} in this net`;
+      else _localHint=' — none visible here';
+    }
+    const _rangeHint=_inRange?'in range ✓':`travel to dist ${tgt.minDist}–${tgt.maxDist}`;
+    progressStr=`${prog.nodeCount||0}/${tgt.count} ${_nodeLabel} · ${_rangeHint}${_localHint}`;
+  }
   else if(step.type==='reach_coords') progressStr=`dist ${typeof meshDistanceCurrent==='function'?meshDistanceCurrent().toFixed(1):0} → ${tgt.minDist}-${tgt.maxDist}`;
   else if(step.type==='clear_net'){
     const curDist2 = typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;

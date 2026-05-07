@@ -1,3 +1,95 @@
+
+// ── STATIC LAYER ENCOUNTER ────────────────────────────────────────────────
+function maybeStaticEncounter(){
+  const dist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+  if(dist<64) return;
+  if(Math.random()>0.4) return;
+  if(S._staticEncounterThisNet) return;
+  S._staticEncounterThisNet=true;
+
+  const tier=dist<128?'remnant':dist<192?'sentinel':'deep';
+  if(tier==='remnant'){
+    // Abandoned corp cache — bonus cred + chance of blueprint
+    const cache=Math.floor(300+dist*8);
+    S.cred=(S.cred||0)+cache;
+    addLog(`◈ STATIC: Abandoned corp cache at dist ${dist.toFixed(0)} — +${cache}₵`,'lp');
+    if(Math.random()<0.3&&typeof tryDropBlueprint==='function') tryDropBlueprint('static_cache');
+  } else if(tier==='sentinel'){
+    // AI sentinel ping — optional confrontation for rep
+    const penalty=Math.floor(dist*2);
+    addLog(`⚠ STATIC: AI Sentinel detected — mesh node at ${dist.toFixed(0)}`,'lw');
+    addLog(`  ▸ Trace +${penalty}%. Lore fragment recovered.`,'lw');
+    S.trace=Math.min(100,(S.trace||0)+penalty);
+    if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
+  } else {
+    // Deep static — pre-Blackout data structure, massive lore/cred
+    const deepCred=Math.floor(1000+dist*15);
+    S.cred=(S.cred||0)+deepCred;
+    addLog(`◈ DEEP STATIC: Pre-Blackout architecture — +${deepCred}₵ archive recovered`,'lp');
+    if(Math.random()<0.5&&typeof tryDropBlueprint==='function') tryDropBlueprint('deep_static');
+    if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
+  }
+}
+
+
+// ── GLITCH ZONE ENCOUNTER EVENTS ─────────────────────────────────────────
+// Fire occasionally on FF completion in glitch zone. One per net max.
+
+function maybeGlitchEncounter(){
+  const dist = typeof meshDistanceCurrent==='function' ? meshDistanceCurrent() : 0;
+  if(dist < 16 || dist >= 64) return;
+  if(Math.random() > 0.35 + (dist-16)*0.008) return; // ~35-52% chance scaling with depth
+  if(S._glitchEncounterThisNet) return;
+  S._glitchEncounterThisNet = true;
+
+  const roll = Math.random();
+  if(roll < 0.33){
+    // Government checkpoint — pass/bribe/flee
+    const govIdxs = typeof getDistGovernments==='function' ? getDistGovernments(Math.floor(dist)) : [];
+    const govName = govIdxs.length&&typeof getGovernmentName==='function' ? getGovernmentName(govIdxs[0]) : 'Government';
+    const bribeCost = Math.floor(200 + dist * 40);
+    addLog(`⚠ CHECKPOINT: ${govName} patrol has flagged your signature.`,'lw');
+    addLog(`  ▸ Pay ${bribeCost}₵ to clear: type payCheckpoint()`, 'lw');
+    addLog(`  ▸ Or accept +15% trace carry into next run`, 'lw');
+    S._pendingCheckpoint = { govIdxs, bribeCost };
+    setTimeout(()=>{
+      if(S._pendingCheckpoint){
+        // Auto-resolve: take the trace penalty
+        S.traceCarry = Math.min(80, (S.traceCarry||0) + 15);
+        addLog(`⚠ Checkpoint not cleared — +15% trace carry`,'lb');
+        S._pendingCheckpoint = null;
+      }
+    }, 30000); // 30s to manually pay
+  } else if(roll < 0.66){
+    // Signal anomaly — lore fragment + small cred
+    const anomCred = Math.floor(100 + dist * 20);
+    S.cred = (S.cred||0) + anomCred;
+    addLog(`◈ SIGNAL ANOMALY: Residual mesh packet intercepted. +${anomCred}₵ from the noise.`,'lp');
+    // Chance to drop a lore datastore fragment
+    if(Math.random() < 0.4 && typeof tryDropLoreFragment === 'function') tryDropLoreFragment();
+    if(typeof checkStoryUnlocks==='function') checkStoryUnlocks();
+  } else {
+    // Rival runner contact — trade info for rep
+    const factions = ['corp','crim','anarch','neutral'];
+    const fac = factions[Math.floor(Math.random()*factions.length)];
+    const repGain = Math.floor(30 + dist * 3);
+    if(S.rep) S.rep[fac] = Math.min(5000, (S.rep[fac]||0) + repGain);
+    const facName = {corp:'Corporate',crim:'Criminal',anarch:'Anarchist',neutral:'Neutral'}[fac];
+    addLog(`◌ RUNNER CONTACT: Shadow exchange. +${repGain} ${facName} rep — they owe you one.`,'lg');
+  }
+}
+
+function payCheckpoint(){
+  if(!S._pendingCheckpoint){ addLog('No active checkpoint','lw'); return; }
+  const { govIdxs, bribeCost } = S._pendingCheckpoint;
+  if((S.cred||0) < bribeCost){ addLog(`Need ${bribeCost}₵ to pay checkpoint`,'lw'); return; }
+  S.cred -= bribeCost;
+  govIdxs.forEach(idx=>{ if(typeof addGovRep==='function') addGovRep(idx, 25); });
+  addLog(`◎ Checkpoint cleared (-${bribeCost}₵, +25 gov rep)`,'lg');
+  S._pendingCheckpoint = null;
+  if(typeof renderTopBar==='function') renderTopBar();
+}
+
 function applyMfrPerk(){
   S._mfrPerk={};
   const hw=hwdef(); if(!hw)return;
@@ -423,6 +515,7 @@ function jackOut(){addLog('⏏ Jack out','lw');finishRun(false,'jackout');}
 
 function finishRun(success,reason='complete'){
   S.running=false;S.combat=null;S.player.stalled=false;
+  S._freqMaskActive=false;S._glitchTraceMask=false;
   if(typeof updateGlitchOverlay==='function') updateGlitchOverlay();
   if(typeof stopGlitchCellTick==='function') stopGlitchCellTick();
   document.getElementById('combat-panel').classList.remove('active');

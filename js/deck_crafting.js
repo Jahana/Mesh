@@ -199,13 +199,142 @@ function dcInstallChassis(chassisInstId){
 }
 
 // Commit crafted deck as active hardware
+
+function dcAutofill(){
+  initCraftedDeck();
+  const chassis = S.craftedDeck.chassis;
+  if(!chassis){ addLog('Autofill: no chassis installed','lw'); return; }
+
+  const cap = chassis.slotCap;
+  const slots = chassis.slots;  // {ram:N, cpu:N, storage:N, accessory:N}
+
+  // Helper: used capacity for a category
+  function usedCap(cat){
+    return (S.craftedDeck.slots[cat]||[]).reduce((s,inst)=>{
+      const def=DC_COMPONENTS.find(x=>x.id===inst.compId);
+      return s+(def?dcComponentCost(def.tier):0);
+    },0);
+  }
+  function freeCap(cat){ return Math.max(0, slots[cat]*cap - usedCap(cat)); }
+
+  // Owned component inventory (not yet installed)
+  const owned = S.craftedDeck.compInventory||[];
+
+  // ── Non-accessory categories: pack highest tier that fits ────────────────
+  for(const cat of ['ram','cpu','storage']){
+    let free = freeCap(cat);
+    if(free <= 0.001) continue;
+    // Sort owned comps of this cat by tier desc
+    const avail = owned
+      .filter(inst=>{ const d=DC_COMPONENTS.find(x=>x.id===inst.compId); return d&&d.cat===cat; })
+      .sort((a,b)=>{
+        const da=DC_COMPONENTS.find(x=>x.id===a.compId);
+        const db=DC_COMPONENTS.find(x=>x.id===b.compId);
+        return (db?.tier||0)-(da?.tier||0);
+      });
+    for(const inst of avail){
+      const def=DC_COMPONENTS.find(x=>x.id===inst.compId);
+      if(!def) continue;
+      const cost=dcComponentCost(def.tier);
+      if(cost<=free+0.001){
+        // Install it
+        const ownedIdx=owned.indexOf(inst);
+        if(ownedIdx>=0){ owned.splice(ownedIdx,1); }
+        S.craftedDeck.slots[cat].push({compId:def.id,instId:inst.instId||uid()});
+        free-=cost;
+        if(free<0.001) break;
+      }
+    }
+  }
+
+  // ── Accessory: one of each type (highest tier), then fill remaining ──────
+  {
+    let free = freeCap('accessory');
+    if(free > 0.001){
+      // Group accessory types by their effect key
+      const accTypes = {};
+      DC_COMPONENTS.filter(d=>d.cat==='accessory').forEach(d=>{
+        const key=Object.keys(d.effect)[0];
+        if(!accTypes[key]||d.tier>accTypes[key].tier) accTypes[key]=d;
+      });
+
+      // For each type, try to install the highest tier we own (one per type first)
+      const installed = new Set();
+      for(const [effKey, bestDef] of Object.entries(accTypes)){
+        if(free<0.001) break;
+        // Find highest-tier owned accessory of this effect type
+        const avail=owned
+          .filter(inst=>{
+            const d=DC_COMPONENTS.find(x=>x.id===inst.compId);
+            return d&&d.cat==='accessory'&&Object.keys(d.effect)[0]===effKey;
+          })
+          .sort((a,b)=>{
+            const da=DC_COMPONENTS.find(x=>x.id===a.compId);
+            const db=DC_COMPONENTS.find(x=>x.id===b.compId);
+            return (db?.tier||0)-(da?.tier||0);
+          });
+        if(!avail.length) continue;
+        const inst=avail[0];
+        const def=DC_COMPONENTS.find(x=>x.id===inst.compId);
+        const cost=dcComponentCost(def.tier);
+        if(cost<=free+0.001){
+          const idx=owned.indexOf(inst);
+          if(idx>=0){ owned.splice(idx,1); }
+          S.craftedDeck.slots.accessory.push({compId:def.id,instId:inst.instId||uid()});
+          installed.add(effKey);
+          free-=cost;
+        }
+      }
+
+      // Fill any remaining accessory capacity with best remaining owned accessories
+      if(free>0.001){
+        const remaining=owned
+          .filter(inst=>{ const d=DC_COMPONENTS.find(x=>x.id===inst.compId); return d&&d.cat==='accessory'; })
+          .sort((a,b)=>{ const da=DC_COMPONENTS.find(x=>x.id===a.compId),db=DC_COMPONENTS.find(x=>x.id===b.compId); return (db?.tier||0)-(da?.tier||0); });
+        for(const inst of remaining){
+          if(free<0.001) break;
+          const def=DC_COMPONENTS.find(x=>x.id===inst.compId);
+          if(!def) continue;
+          const cost=dcComponentCost(def.tier);
+          if(cost<=free+0.001){
+            const idx=owned.indexOf(inst);
+            if(idx>=0){ owned.splice(idx,1); }
+            S.craftedDeck.slots.accessory.push({compId:def.id,instId:inst.instId||uid()});
+            free-=cost;
+          }
+        }
+      }
+    }
+  }
+
+  applyDraftDeckStats();
+  addLog('◈ Deck autofilled — slots packed with highest-tier components','lp');
+  if(typeof renderDeckCraft==='function') renderDeckCraft();
+  if(typeof autoSave==='function') autoSave();
+}
+
 function dcCommitDeck(){
   initCraftedDeck();
   if(!S.craftedDeck.chassis){ addLog('No chassis installed','lw'); return; }
+  // Unequip hardware deck — crafted deck replaces it
+  if(S.hardware){
+    const _old = typeof HARDWARE!=='undefined' ? HARDWARE.find(h=>h.id===S.hardware) : null;
+    addLog(`◈ ${_old?.name||'Deck'} unequipped — replaced by crafted deck`,'lw');
+    S.hardware = null;
+  }
   applyDraftDeckStats();
-  addLog('◈ Crafted deck activated','lp');
+  const _st=S.craftedDeck.activeStats||{};
+  const _parts=[];
+  if(_st.ram)_parts.push(`+${_st.ram} RAM`);
+  if(_st.storage)_parts.push(`+${_st.storage} storage`);
+  if(_st.breakerStr)_parts.push(`+${_st.breakerStr} breaker STR`);
+  if(_st.integrity)_parts.push(`+${_st.integrity} INT`);
+  if(_st.traceResist)_parts.push(`-${_st.traceResist}% trace`);
+  if(_st.iceReveal)_parts.push('ICE reveal');
+  addLog(`◈ Crafted deck activated — ${_parts.join(', ')||'no bonuses yet'}`,'lp');
   if(typeof autoSave==='function') autoSave();
   if(typeof renderDeckCraft==='function') renderDeckCraft();
+  if(typeof renderDeck==='function') renderDeck();
   if(typeof renderTopBar==='function') renderTopBar();
 }
 
@@ -263,6 +392,46 @@ function tryDropChassis(source){
   const chassis = mkChassis(rarity, tier, source);
   chassis.instId = typeof uid==='function' ? uid() : Math.random().toString(36).slice(2);
   S.craftedDeck.chassisInventory.push(chassis);
+
+  // Auto-sell inferior chassis from inventory (runs after new chassis is added)
+  {
+    const _RR={salvage:0,standard:1,military:2,advanced:3,prototype:4};
+    const _SP={salvage:200,standard:600,military:1500,advanced:4000,prototype:10000};
+    const _inv=S.craftedDeck.chassisInventory;
+    const _equip=S.craftedDeck.chassis; // currently equipped (if any)
+
+    // Determine the single best chassis we own across installed + inventory
+    const _all=[...(_equip?[_equip]:[]),..._inv];
+    const _bestTier=Math.max(..._all.map(ch=>ch.tier||1));
+    const _bestRarityAtBestTier=_all
+      .filter(ch=>(ch.tier||1)===_bestTier)
+      .reduce((best,ch)=>(_RR[ch.rarity]||0)>(_RR[best]||0)?ch.rarity:best,'salvage');
+
+    const _sold=[];
+    // Work backwards so splice indices stay valid
+    for(let i=_inv.length-1;i>=0;i--){
+      const ch=_inv[i];
+      const t=ch.tier||1, r=ch.rarity;
+      let sell=false;
+      // A: duplicate — same tier+rarity exists elsewhere in inv or as equipped
+      const _elsewhere=_inv.some((o,j)=>j!==i&&o.tier===t&&o.rarity===r)||(_equip&&_equip.tier===t&&_equip.rarity===r);
+      if(_elsewhere) sell=true;
+      // B: lower tier than our best
+      else if(t<_bestTier) sell=true;
+      // C: same tier as best but lower rarity than our best at that tier
+      else if(t===_bestTier&&(_RR[r]||0)<(_RR[_bestRarityAtBestTier]||0)) sell=true;
+
+      if(sell){
+        _sold.push({name:ch.name,rarity:r,price:_SP[r]||200});
+        S.cred=(S.cred||0)+(_SP[r]||200);
+        _inv.splice(i,1);
+      }
+    }
+    if(_sold.length){
+      const _total=_sold.reduce((s,x)=>s+x.price,0);
+      addLog(`◈ Auto-sold ${_sold.length} chassis (${_sold.map(x=>x.rarity).join(', ')}) +${_total}₵`,'lg');
+    }
+  }
 
   if(!S.loreLog) S.loreLog=[];
   addLog(`◈ CHASSIS found: ${chassis.name} [${rarity}] (${source})`, 'lp');

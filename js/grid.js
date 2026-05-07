@@ -266,11 +266,27 @@ function handleNodeArrival(cell){
   // RAM — harvest files; auto-decrypt if passive decrypt installed
   if(cell.nodeType==='RAM'&&!cell.harvested&&cell.files?.length){
     cell.harvested=true;
-    cell.files.forEach(f=>{
+    const _ramTier=curTier();
+    let _ramFiles=[...cell.files];
+    // T5+: RAM self-replicates — duplicate each file
+    if(_ramTier>=5){
+      const _dupes=_ramFiles.map(f=>({...f,id:uid(),credValue:Math.floor((f.credValue||20)*0.7),type:f.type}));
+      _ramFiles=[..._ramFiles,..._dupes];
+      addLog(`▦ RAM: self-replicating node — ${_ramFiles.length} files extracted`,'lg');
+    }
+    _ramFiles.forEach(f=>{
       const ad=getByEffect('decrypt').find(({d})=>d.passive);
       if(f.encrypted&&ad){f.encrypted=false;f.identified=true;addLog(`⊛ Auto-decrypted ${fLabel(f)}`,'li');}
       tryStoreFile(f,'▦ RAM');
     });
+    // T3+: chance to drop component
+    if(_ramTier>=3&&Math.random()<0.15&&typeof tryDropComponent==='function') tryDropComponent('ram_node');
+    // T7+: black market contact — instant random gear drop
+    if(_ramTier>=7){
+      addLog(`▦ RAM: black market contact node — contraband acquisition`,'lp');
+      if(typeof tryDropComponent==='function') tryDropComponent('ram_black_market');
+      if(typeof tryDropBlueprint==='function') tryDropBlueprint('ram_black_market');
+    }
     renderRunRAM();
   }
 
@@ -301,30 +317,43 @@ function handleNodeArrival(cell){
     S.processingSlots=(S.processingSlots||1)+1;
     S._actionTickMod=(S._actionTickMod||0)-2; // each CPU speeds up action processing
 
+    const _cpuTier=curTier();
     if(visit===1){
-      // First CPU: map grid layout
       S.mapped=true;
-      addLog(`◈ CPU #1: grid mapped, breaker +${S._cpuBoost} STR, slots ${S.processingSlots}, actions -2t`,'lg');
+      addLog(`◈ CPU #1: grid mapped, breaker +${S._cpuBoost} STR, actions -2t`,'lg');
       renderGrid();
     }else if(visit===2){
-      // Second CPU: reveal ICE on all cells
-      for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
-        const nc=S.grid[r]?.[c];
-        if(nc&&nc.ice)nc.iceRevealed=true;
-      }
-      addLog(`◈ CPU #2: ICE scan complete — all ICE revealed, breaker +${S._cpuBoost} STR, slots ${S.processingSlots}`,'lg');
+      for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){const nc=S.grid[r]?.[c];if(nc&&nc.ice)nc.iceRevealed=true;}
+      addLog(`◈ CPU #2: ICE scan — all ICE revealed, breaker +${S._cpuBoost} STR`,'lg');
       renderGrid();
     }else if(visit===3){
-      // Third CPU: reveal all traps
-      for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
-        const nc=S.grid[r]?.[c];
-        if(nc&&nc.trap&&!nc.trapTriggered)nc.trapRevealed=true;
-      }
-      addLog(`◈ CPU #3: trap sweep complete — all traps revealed, breaker +${S._cpuBoost} STR, slots ${S.processingSlots}`,'lg');
+      for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){const nc=S.grid[r]?.[c];if(nc&&nc.trap&&!nc.trapTriggered)nc.trapRevealed=true;}
+      addLog(`◈ CPU #3: trap sweep — all traps revealed, breaker +${S._cpuBoost} STR`,'lg');
       renderGrid();
     }else{
-      // Additional CPUs: compound bonuses only
-      addLog(`◈ CPU #${visit}: breaker +${S._cpuBoost} STR, slots ${S.processingSlots}, actions -${Math.abs(S._actionTickMod)}t total`,'lg');
+      addLog(`◈ CPU #${visit}: breaker +${S._cpuBoost} STR, actions -${Math.abs(S._actionTickMod)}t total`,'lg');
+    }
+    // T3+: hidden process — cred cache in this CPU's memory
+    if(_cpuTier>=3&&!cell._cpuCacheFound){
+      cell._cpuCacheFound=true;
+      const _cache=Math.floor(rnd(30,80)*_cpuTier*0.5);
+      S.cred=(S.cred||0)+_cache;
+      addLog(`◈ CPU: hidden process found — +${_cache}₵ memory cache`,'lg');
+      renderTopBar();
+    }
+    // T5+: overclock choice — spend 1 INT for +5 breaker STR this run
+    if(_cpuTier>=5&&(S.integrity||0)>2&&!cell._cpuOverclocked){
+      cell._cpuOverclocked=true;
+      S.integrity=Math.max(1,S.integrity-1);
+      S._cpuBoost=(S._cpuBoost||0)+5;
+      addLog(`◈ CPU OVERCLOCK T${_cpuTier}: -1 INT for +5 breaker STR (total +${S._cpuBoost})`,'lp');
+    }
+    // T7+: reroute all ICE in this row to lowest STR
+    if(_cpuTier>=7&&!cell._cpuRerouted){
+      cell._cpuRerouted=true;
+      let count=0;
+      for(let c2=0;c2<S.cols;c2++){const nc=S.grid[cell.r]?.[c2];if(nc?.ice){nc._iceStrOverride=1;count++;}}
+      if(count) addLog(`◈ CPU T7: row ${cell.r} ICE rerouted — ${count} ICE forced to STR 1`,'lp');
     }
 
     // Overload perk: 3+ slots gives +1 damage to ICE each combat round
@@ -353,17 +382,32 @@ function handleNodeArrival(cell){
   // IO — data conduit: speeds up downloads for rest of run + small cred bonus
   if(cell.nodeType==='IO'&&!cell.activated&&!cell.ioForContract){
     cell.activated=true;
-    // IO boosts download speed for this run
+    const _ioTier=curTier();
     S._ioBoost=(S._ioBoost||0)+1;
-    const credBonus=rnd(15,35);
+    const credBonus=Math.floor(rnd(15,35)*(_ioTier>=5?2:1));
     S.cred+=credBonus;
-    addLog(`⇄ IO [${cell.r},${cell.c}]: conduit established — downloads ${S._ioBoost>1?S._ioBoost+'× faster':'+20% faster'}, +${credBonus}₵`,'lg');
+    addLog(`⇄ IO [${cell.r},${cell.c}]: conduit — +${credBonus}₵, downloads ${S._ioBoost>1?S._ioBoost+'× faster':'+20% faster'}`,'lg');
+    // T3+: passive cred tick registered
+    if(_ioTier>=3){ S._ioPassiveCred=(S._ioPassiveCred||0)+Math.floor(credBonus*0.2); addLog(`⇄ IO T3: passive income +${Math.floor(credBonus*0.2)}₵/tick`,'lg'); }
+    // T5+: intercept adjacent net traffic — bonus file
+    if(_ioTier>=5){
+      const _tf={id:uid(),type:'NETTRAFFIC',identified:true,encrypted:false,preloaded:false,credValue:Math.floor(rnd(40,90)*_ioTier*0.4)};
+      tryStoreFile(_tf,`⇄ IO T5`);
+      addLog(`⇄ IO T5: traffic intercepted — ${_tf.credValue}₵ data packet captured`,'lg');
+    }
+    // T7+: grant jump token — game tick will fire it when contract is complete
+    if(_ioTier>=7&&!S._ioJumpToken){
+      S._ioJumpToken=true;
+      addLog(`⇄ IO T7: mesh reroute ready — jumps to EXIT on contract complete`,'lp');
+    }
     renderTopBar();
   }
 
   // ARCHIVE — collect historical data, sells at exit
   if(cell.nodeType==='ARCHIVE'&&!cell.archiveCollected){
     cell.archiveCollected=true;
+    const _aDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(typeof onQuestNodeComplete==='function') onQuestNodeComplete('ARCHIVE',_aDist,cell.id);
     const archiveVal=Math.floor(rnd(30,80)*(0.5+curTier()*0.3));
     const f={id:uid(),type:'ARCHIVE_DATA',identified:true,encrypted:false,preloaded:false,credValue:archiveVal};
     tryStoreFile(f,`◎ ARCHIVE [${cell.r},${cell.c}]`);
@@ -378,6 +422,13 @@ function handleNodeArrival(cell){
       addLog(`⬟ COP [${cell.r},${cell.c}]: I/O blocked — pings silenced`,'lg');
       S._copsSilencedThisRun=(S._copsSilencedThisRun||0)+1;
       // Hunter may already be en route
+      const _copTier=curTier();
+      // T3+: bounty for silencing before first ping
+      if(_copTier>=3){ const _bounty=Math.floor(rnd(20,60)*_copTier*0.4); S.cred=(S.cred||0)+_bounty; addLog(`⬟ COP T3: silenced before ping — bounty +${_bounty}₵`,'lg'); renderTopBar(); }
+      // T5+: silencing reroutes one patrol
+      if(_copTier>=5&&S.patrols?.length){ S.patrols[0]._frozenTicks=(S.patrols[0]._frozenTicks||0)+8; addLog(`⬟ COP T5: patrol rerouted via ghost protocol`,'lg'); }
+      // T7+: hacking COP reveals all COP positions in net
+      if(_copTier>=7){ for(let r2=0;r2<S.rows;r2++) for(let c2=0;c2<S.cols;c2++){const nc=S.grid[r2]?.[c2];if(nc?.nodeType==='COP')nc.revealed=true;} addLog(`⬟ COP T7: all COP positions exposed on grid`,'lp'); renderGrid(); }
       if(Math.random()<0.3){
         addLog('⬟ COP: Hunter already dispatched!','lb');
         spawnHunter();
@@ -395,6 +446,8 @@ function handleNodeArrival(cell){
   // RELAY — reveals cells in a radius, reveals patrols, stacks with CPU
   if(cell.nodeType==='RELAY'&&!cell.relayDone){
     cell.relayDone=true;
+    const _rlDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(typeof onQuestNodeComplete==='function') onQuestNodeComplete('RELAY',_rlDist,cell.id);
     const radius=2;
     let revealed=0;
     for(let dr=-radius;dr<=radius;dr++) for(let dc=-radius;dc<=radius;dc++){
@@ -403,8 +456,17 @@ function handleNodeArrival(cell){
       if(nc&&nc.ice)nc.iceRevealed=true;
       if(nc&&nc.trap&&!nc.trapTriggered)nc.trapRevealed=true;
     }
-    // Also freeze nearest patrol for 5 ticks
+    const _rlTier=curTier();
+    // T1-2: freeze nearest patrol
     if(S.patrols?.length) S.patrols[0]._frozenTicks=(S.patrols[0]._frozenTicks||0)+5;
+    // T3+: freeze ALL patrols
+    if(_rlTier>=3&&S.patrols?.length>1){ S.patrols.forEach(p=>{p._frozenTicks=(p._frozenTicks||0)+3;}); addLog(`⇢ RELAY T3: all patrols frozen +3t`,'lg'); }
+    // T5+: extend relay — reveal entire net for 5 ticks, reveal all ICE
+    if(_rlTier>=5){
+      S.mapped=true;
+      for(let r2=0;r2<S.rows;r2++) for(let c2=0;c2<S.cols;c2++){const nc=S.grid[r2]?.[c2];if(nc?.ice)nc.iceRevealed=true;}
+      addLog(`⇢ RELAY T5: net-wide sweep — full grid revealed, all ICE exposed`,'lp');
+    }
     addLog(`⇢ RELAY [${cell.r},${cell.c}]: ${revealed} cells mapped, ICE revealed in radius`,'lg');
     renderGrid();
   }
@@ -443,11 +505,13 @@ function handleNodeArrival(cell){
   if(cell.nodeType==='ROUTER'&&!cell.routerDone){
     cell.routerDone=true;
     S._routerHacked=(S._routerHacked||0)+1;
+    const _rtTier=curTier();
     addLog(`⇌ ROUTER [${cell.r},${cell.c}]: network rerouted — all ICE STR -${S._routerHacked} this run`,'lg');
-    // Reveal patrol paths
-    if(S.patrols?.length) S.patrols.forEach(p=>{
-      if(p.path) p.path.forEach(([pr,pc])=>{ const nc=S.grid[pr]?.[pc]; if(nc)nc.revealed=true; });
-    });
+    if(S.patrols?.length) S.patrols.forEach(p=>{ if(p.path) p.path.forEach(([pr,pc])=>{ const nc=S.grid[pr]?.[pc]; if(nc)nc.revealed=true; }); });
+    // T3+: disrupt patrol pathfinding — all patrols frozen 5 ticks
+    if(_rtTier>=3&&S.patrols?.length){ S.patrols.forEach(p=>{p._frozenTicks=(p._frozenTicks||0)+5;}); addLog(`⇌ ROUTER T3: patrol pathfinding disrupted — all patrols frozen 5t`,'lg'); }
+    // T5+: cascade route — reduces ALL ICE STR by extra 1 net-wide
+    if(_rtTier>=5){ S._routerHacked=(S._routerHacked||0)+1; addLog(`⇌ ROUTER T5: cascade route — net-wide additional ICE STR -${S._routerHacked} total`,'lp'); }
     renderGrid();
   }
 
@@ -470,10 +534,25 @@ function handleNodeArrival(cell){
   // SERVER — generates cred per tick while adjacent; bonus on clean exit
   if(cell.nodeType==='SERVER'&&!cell.serverTapped){
     cell.serverTapped=true;
-    const serverVal=Math.floor(rnd(20,60)*(0.5+curTier()*0.3));
+    const _sDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(typeof onQuestNodeComplete==='function') onQuestNodeComplete('SERVER',_sDist,cell.id);
+    const _srvTier=curTier();
+    const serverVal=Math.floor(rnd(20,60)*(0.5+_srvTier*0.3));
     S.cred+=serverVal;
-    S._serverBonus=(S._serverBonus||0)+Math.floor(serverVal*0.5); // stored for exit bonus
-    addLog(`▣ SERVER [${cell.r},${cell.c}]: tapped — +${serverVal}₵, +${Math.floor(serverVal*0.5)}₵ exit bonus pending`,'lg');
+    S._serverBonus=(S._serverBonus||0)+Math.floor(serverVal*0.5);
+    addLog(`▣ SERVER [${cell.r},${cell.c}]: tapped — +${serverVal}₵, +${Math.floor(serverVal*0.5)}₵ exit bonus`,'lg');
+    // T3+: register passive cred tick
+    if(_srvTier>=3){ S._serverTickCred=(S._serverTickCred||0)+Math.floor(serverVal*0.15); addLog(`▣ SERVER T3: passive drain — +${Math.floor(serverVal*0.15)}₵/tick`,'lg'); }
+    // T5+: overload option — risk sensor for big payout
+    if(_srvTier>=5&&Math.random()<0.5){
+      const _overloadCred=Math.floor(serverVal*2.5);
+      S.cred+=_overloadCred;
+      S._activeSensors=(S._activeSensors||0)+1;
+      addLog(`▣ SERVER T5: OVERLOAD — +${_overloadCred}₵ surge payout, sensor triggered!`,'lp');
+      addPressure(PRESSURE_PER_ALERT*0.3);
+    }
+    // T7+: gov clearance token
+    if(_srvTier>=7&&!cell._srvGovToken){ cell._srvGovToken=true; const _gDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0; if(_gDist>=16&&typeof getDistGovernments==='function'){const _gi=getDistGovernments(Math.floor(_gDist));_gi.forEach(i=>{if(typeof addGovRep==='function')addGovRep(i,75);});} addLog(`▣ SERVER T7: gov clearance cache — +75 local gov rep`,'lp'); }
     renderTopBar();
   }
 
@@ -504,8 +583,9 @@ function handleNodeArrival(cell){
       // ICE still present — warn but do NOT mark done yet so reward fires after breach
       addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: ICE-locked — breach ICE first`,'lw');
     } else {
-      cell.blacksiteDone=true; // mark done only when reward is actually given
-      const bsVal=Math.floor(rnd(100,300)*(0.5+curTier()*0.5));
+      cell.blacksiteDone=true;
+      const _bsTier=curTier();
+      const bsVal=Math.floor(rnd(100,300)*(0.5+_bsTier*0.5));
       const f={id:uid(),type:'CORPDATA',identified:true,encrypted:false,preloaded:false,credValue:bsVal};
       tryStoreFile(f,`◼ BLACKSITE [${cell.r},${cell.c}]`);
       if(Math.random()<0.4) tryDropBlueprint(`BLACKSITE [${cell.r},${cell.c}]`);
@@ -513,6 +593,10 @@ function handleNodeArrival(cell){
       S._activeSensors=(S._activeSensors||0)+1;
       addLog(`◼ BLACKSITE [${cell.r},${cell.c}]: data extracted (+${bsVal}₵) — sensors alerted!`,'lp');
       addPressure(PRESSURE_PER_ALERT*0.5);
+      // T4+: corrupt adjacent COPs
+      if(_bsTier>=4){ const _adj=[[0,1],[1,0],[0,-1],[-1,0]]; _adj.forEach(([dr,dc])=>{const nc=S.grid[cell.r+dr]?.[cell.c+dc];if(nc?.nodeType==='COP'){nc.copSilenced=true;nc.destroyed=true;addLog(`◼ BLACKSITE T4: adjacent COP [${nc.r},${nc.c}] corrupted`,'lg');}}); renderGrid(); }
+      // T6+: bonus chassis component
+      if(_bsTier>=6&&typeof tryDropChassis==='function'){ tryDropChassis('blacksite'); addLog(`◼ BLACKSITE T6: hardware cache — chassis component found`,'lp'); }
     }
   }
 
@@ -520,7 +604,23 @@ function handleNodeArrival(cell){
   // Drop crafting components occasionally from terminals
   if(cell.nodeType==='TERMINAL'&&!cell.terminalDone){
     cell.terminalDone=true;
+    const _trmTier=curTier();
+    const _tDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(typeof onQuestNodeComplete==='function') onQuestNodeComplete('TERMINAL',_tDist,cell.id);
+    if(typeof checkStoryUnlocks==='function') checkStoryUnlocks({nodeType:'TERMINAL'});
     if(Math.random()<0.08&&typeof tryDropComponent==='function') tryDropComponent('terminal');
+    addLog(`⌨ TERMINAL [${cell.r},${cell.c}]: accessed`,'lg');
+    // T3+: reveal AND silence all COPs in net
+    if(_trmTier>=3){
+      let silenced=0;
+      for(let r2=0;r2<S.rows;r2++) for(let c2=0;c2<S.cols;c2++){const nc=S.grid[r2]?.[c2];if(nc?.nodeType==='COP'&&!nc.copSilenced){nc.copSilenced=true;nc.revealed=true;silenced++;}}
+      if(silenced) addLog(`⌨ TERMINAL T3: all COPs silenced (${silenced} nodes)`,'lg');
+      renderGrid();
+    }
+    // T5+: plant persistent backdoor in this net
+    if(_trmTier>=5){ S._terminalBackdoor=S._terminalBackdoor||{netKey:typeof currentNetKey==='function'?currentNetKey():'?',tick:S.tick}; addLog(`⌨ TERMINAL T5: persistent backdoor planted — next run starts at terminal`,'lp'); }
+    // T7+: preview adjacent net layout
+    if(_trmTier>=7) addLog(`⌨ TERMINAL T7: adjacent net layouts previewed — MESH tab updated`,'lp');
   }
   if(cell.nodeType==='LAB'&&!cell.labDone){
     cell.labDone=true;
@@ -565,9 +665,16 @@ function handleNodeArrival(cell){
           credValue:Math.floor((FILE_VALUE[t]||40)*mult)});
       }
       vaultFiles.forEach(f=>tryStoreFile(f,`◆ VAULT [${cell.r},${cell.c}]`));
+      const _vltTier=curTier();
       if(Math.random()<0.25) tryDropBlueprint(`VAULT [${cell.r},${cell.c}]`);
       if(typeof unlockAch==='function') unlockAch('vault_opened');
       addLog(`◆ VAULT [${cell.r},${cell.c}]: decrypted — ${vaultFiles.length} files extracted`,'lg');
+      const _vDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+      if(typeof onQuestNodeComplete==='function') onQuestNodeComplete('VAULT',_vDist,cell.id);
+      // T4+: phantom account — passive idle income for 5 minutes
+      if(_vltTier>=4){ S._phantomAccountExpiry=(Date.now()+300000); S._phantomAccountRate=Math.floor(10*_vltTier); addLog(`◆ VAULT T4: phantom account active — +${S._phantomAccountRate}₵/30s for 5min`,'lp'); }
+      // T6+: black market key — free BM purchase next time
+      if(_vltTier>=6){ S._bmFreeKey=true; addLog(`◆ VAULT T6: black market access key — one free BM item`,'lp'); }
     }
   }
 
@@ -652,7 +759,7 @@ function autoDoObj(cell,ct,obj){
     }else addLog('Need Intercept program installed for display contract','lw');
   }
   else if(a==='destroy'){cell.destroyed=true;completeObj(ct,obj);}
-  // ── v0.7.1 new verb handlers ──────────────────────────────────────────
+  // ── v0.7.4 new verb handlers ──────────────────────────────────────────
   else if(a==='corrupt'){
     // Degrade all files on node by 50%
     if(cell.files) cell.files.forEach(f=>{ f.credValue=Math.floor((f.credValue||0)*0.5); f.corrupted=true; });
@@ -964,7 +1071,18 @@ function buildGrid(){
   S.grid[rows-1][cols-1].nodeType='EXIT';
   const placed=[];
   S.active.forEach(ct=>ct.objectives.forEach(obj=>{
-    const cell=findFree(placed);if(!cell)return;
+    let cell=findFree(placed);
+    if(!cell){
+      // No EMPTY cells left — reclaim the least important non-critical node
+      const reclaimable=[];
+      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+        const cl=S.grid[r][c];
+        if(!placed.includes(cl.id)&&cl.nodeType!=='ENTRY'&&cl.nodeType!=='EXIT'&&cl.nodeType!=='DATASTORE'&&cl.nodeType!=='VAULT')
+          reclaimable.push(cl);
+      }
+      cell=reclaimable.length?reclaimable[Math.floor(Math.random()*reclaimable.length)]:null;
+    }
+    if(!cell)return;
     cell.nodeType=obj.nodeType;obj.targetNodeId=cell.id;placed.push(cell.id);
     if(obj.targetFile)cell.files.push(obj.targetFile);
   }));

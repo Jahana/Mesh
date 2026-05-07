@@ -311,7 +311,7 @@ function ttCell(cell, r, c){
   if(cell.ice){
     const id=BASE_ICE[cell.ice];
     const str=iceStr(cell.ice,curTier());
-    const revealed=cell.iceRevealed||attachEffect('ice_reveal')>0;
+    const revealed=cell.iceRevealed||attachEffect('ice_reveal')>0||(typeof getDeckCraftStat==='function'&&getDeckCraftStat('iceReveal')>0);
     lines.push('');
     if(id){
       lines.push(`<span style="color:#ff4040">⬡ ICE: ${id.label}</span>${revealed?` <span style="color:#ffaa20">STR ${str}</span>`:' <span style="color:#3a3a3a">STR ???</span>'}`);
@@ -361,7 +361,7 @@ function ttCell(cell, r, c){
 }
 
 function showPatchNotes(){
-  const title="MESH v0.7.1 \u2014 Help & Changes";
+  const title="MESH v0.7.4 \u2014 Help & Changes";
   const body=`
     <div style="font-size:8px;line-height:1.8;color:#3a6a3a;max-height:400px;overflow-y:auto;padding-right:8px">
       <div style="color:#40ff80;font-size:10px;margin-bottom:8px">v0.3 \u2014 Current Build</div>
@@ -385,7 +385,7 @@ function showPatchNotes(){
 function showTab(name){
   // Show mesh tab if traversal unlocked
   const meshTabEl=document.getElementById('tab-mesh');
-  if(meshTabEl&&S.mesh?.traversalUnlocked) meshTabEl.style.display='';
+  if(meshTabEl&&(S.mesh?.traversalUnlocked||(typeof ascensionCount==='function'&&ascensionCount()>=1))) meshTabEl.style.display='';
   const netTabEl=document.getElementById('tab-net');
   if(netTabEl) netTabEl.style.display=S.mesh?.currentNet?'':'';
   // Always refresh context nav when switching tabs
@@ -648,17 +648,17 @@ function renderNetTab(){
       const node = layout[row]?.[col] || {};
       const addr = typeof nodeAddr==='function' ? nodeAddr(col, row) : ((col*16+row)&0xFF).toString(16).toUpperCase().padStart(2,'0');
       const done = ns.completedNodes.includes(addr);
-      const fac  = nodeFaction(col, row);
+      const fac  = node.faction || nodeFaction(col, row);
       const col_ = facColors[fac] || '#60a060';
       const hasIce = !!node.ice;
       const isPlayer = addr === currentAddr;
       const accessible = typeof isNodeAccessible==='function' ? isNodeAccessible(addr, ns) : true;
 
       const div = document.createElement('div');
-      // Color all cells by faction — visited brighter, unvisited dimmer
-      const border = isPlayer ? '#40ff80' : done ? col_ : col_+'55';
-      const bg     = isPlayer ? '#0a2010' : done ? col_+'28' : col_+'0e';
-      const glow   = isPlayer ? '0 0 6px #40ff8088' : done ? '0 0 4px '+col_+'88' : 'none';
+      // Color all cells by faction — strong enough to read clearly
+      const border = isPlayer ? '#40ff80' : done ? col_ : col_+'88';
+      const bg     = isPlayer ? '#0a2010' : done ? col_+'44' : col_+'18';
+      const glow   = isPlayer ? '0 0 6px #40ff8088' : done ? '0 0 5px '+col_+'aa' : '0 0 2px '+col_+'44';
       const iceIndicator = hasIce ? `<span style="position:absolute;top:1px;right:1px;width:3px;height:3px;border-radius:50%;background:#ff4040;opacity:0.9"></span>` : '';
       div.style.cssText = `width:${CELL}px;height:${CELL}px;border-radius:2px;display:flex;flex-direction:column;
         align-items:center;justify-content:center;gap:0;position:relative;
@@ -912,7 +912,7 @@ function renderGrid(){
   const el=document.getElementById('grid');if(!el||!S.grid.length)return;
   updateLayoutForTier();
   el.style.gridTemplateColumns=`repeat(${S.cols},54px)`;el.innerHTML='';
-  const iceReveal=attachEffect('ice_reveal')>0;
+  const iceReveal=attachEffect('ice_reveal')>0||(typeof getDeckCraftStat==='function'&&getDeckCraftStat('iceReveal')>0);
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const cell=S.grid[r][c];
     // BLACKSITE hidden until adjacent; MIMIC shows disguise node type
@@ -927,6 +927,12 @@ function renderGrid(){
     const vis=S.mapped||cell.visited||(r===0&&c===0);
     const isTgt=S.active.some(ct=>ct.objectives.some(o=>o.targetNodeId===cell.id&&!o.done&&!o.failed));
     const isDone=S.active.some(ct=>ct.objectives.some(o=>o.targetNodeId===cell.id&&o.done));
+    // Also highlight cells matching active quest's priority node type
+    const _questStep=typeof activeQuestStep==='function'?activeQuestStep():null;
+    const _questNodeType=_questStep?.autorunOverride?.priorityNodeType||_questStep?.target?.nodeType;
+    const _questDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    const _questInRange=!_questStep||(_questDist>=(_questStep.target?.minDist||0)&&_questDist<=(_questStep.target?.maxDist||999));
+    const isQuestTarget=!isTgt&&_questNodeType&&cell.nodeType===_questNodeType&&_questInRange&&!cell.visited;
     const isCombat=S.combat&&S.combat.cellR===r&&S.combat.cellC===c;
     const div=document.createElement('div');
     let cls='cell '+(vis?'':'unmapped');
@@ -936,6 +942,7 @@ function renderGrid(){
     if(isCombat)cls+=' c-combat';
     else if(isDone)cls+=' c-done';
     else if(isTgt)cls+=' c-target';
+    else if(isQuestTarget)cls+=' c-quest-node';
     if(cell.backdoor)cls+=' c-backdoor';
     if(cell.nodeType==='COP'&&!cell.destroyed)cls+=cell.copSilenced?' c-cop-silenced':' c-cop-active';
     if(cell.nodeType==='VAULT'&&cell.vaultLocked)cls+=' c-vault-locked';
@@ -943,6 +950,14 @@ function renderGrid(){
     if(cell.nodeType==='RELAY'&&cell.relayDone)cls+=' c-relay-visited';
     if(cell.nodeType==='PROXY'&&cell.proxyActive)cls+=' c-proxy-active';
     div.className=cls;
+
+    // Faction color — background tint + top-left badge letter
+    const _facColors={corp:'#6080c0',crim:'#c08040',anarch:'#c04040',neutral:'#60a060',gov:'#a0a040',ai:'#ff4080'};
+    const _facLetters={corp:'C',crim:'K',anarch:'A',neutral:'N',gov:'G',ai:'AI'};
+    if(cell.faction && cell.nodeType!=='ENTRY' && cell.nodeType!=='EXIT'){
+      const _ft = _facColors[cell.faction];
+      if(_ft && !isPlayer && !isCombat) div.style.background = cell.visited ? _ft+'22' : _ft+'0e';
+    }
 
     let html='';
     // ICE badge
@@ -969,6 +984,7 @@ function renderGrid(){
     if(fileCount>0&&vis&&!cell.scanned)html+=`<span class="file-count">${fileCount}f</span>`;
     // Objective
     if(isTgt&&vis)html+=`<span class="obj-ind" style="color:#ffdd00;font-size:9px">◎</span>`;
+    if(isQuestTarget&&vis)html+=`<span class="obj-ind" style="color:#6060ff;font-size:9px">⊛</span>`;
     // Player
     if(isPlayer)html+=`<div class="pt"><div class="pt-inner">▶</div></div>`;
     // Patrol
@@ -988,6 +1004,12 @@ function renderGrid(){
       const _pct=Math.round((1-_aq.ticksLeft/_aq.ticksTotal)*100);
       const _barCol=_aq.type==='datastore'?'#ff6644':isPlayer?'#40aaff':'#2a6a4a';
       html+=`<div class="cell-action-bar" style="background:#0d1a0d"><div class="cell-action-fill" style="width:${_pct}%;background:${_barCol}"></div></div>`;
+    }
+    // Faction badge — top-left corner, colored letter
+    if(vis && cell.faction && cell.nodeType!=='ENTRY' && cell.nodeType!=='EXIT'){
+      const _fl = _facLetters[cell.faction] || '?';
+      const _fc = _facColors[cell.faction] || '#3a6a3a';
+      html+=`<span style="position:absolute;top:1px;left:2px;font-size:6px;font-weight:bold;color:${_fc};opacity:0.9;font-family:monospace;line-height:1">${_fl}</span>`;
     }
     // Coords
     html+=`<span style="position:absolute;bottom:1px;left:2px;font-size:5px;color:#1a3a1a">${r},${c}</span>`;
@@ -1915,7 +1937,11 @@ function renderDeckCraft(){
         <span style="font-size:9px;color:${RARITY_COLORS[chassis.rarity]||'#40c060'};font-family:'Orbitron',monospace">${chassis.name}</span>
         <span style="font-size:7px;color:#2a5a2a">tier ${chassis.tier} · ${chassis.slotCap.toFixed(chassis.slotCap%1===0?0:1)} cap/slot</span>
       </div>
-      ${activeStats.length?`<div style="font-size:7px;color:#2a6a3a">${activeStats.join(' · ')}</div>`:'<div style="font-size:7px;color:#1a3a1a">No components installed.</div>'}
+      ${activeStats.length?`<div style="font-size:7px;color:#2a6a3a;margin-bottom:6px">${activeStats.join(' · ')}</div>`:'<div style="font-size:7px;color:#1a3a1a;margin-bottom:6px">No components installed.</div>'}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <button onclick="dcAutofill()" style="font-size:7px;padding:3px 10px;background:#0a1a10;border:1px solid #40a060;border-radius:2px;color:#40c060;cursor:pointer;font-family:Share Tech Mono,monospace">⊛ AUTOFILL</button>
+        <button onclick="dcCommitDeck()" style="font-size:7px;padding:3px 10px;background:#0a0a1a;border:1px solid #4040c0;border-radius:2px;color:#6060ff;cursor:pointer;font-family:Share Tech Mono,monospace">▶ ACTIVATE</button>
+      </div>
     </div>`;
   } else {
     html += `<div style="font-size:8px;color:#1a4a2a;padding:8px;border:1px dashed #1a3a1a;border-radius:4px;margin-bottom:8px">No chassis installed. Obtain one from government contracts.</div>`;

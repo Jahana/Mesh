@@ -1,3 +1,24 @@
+
+// ── FACTION INVESTMENTS ───────────────────────────────────────────────────
+function buyInvestment(invId){
+  const def=typeof INVESTMENTS!=='undefined'?INVESTMENTS.find(x=>x.id===invId):null;
+  if(!def){ addLog('Investment not found','lw'); return; }
+  if(!S.investments) S.investments=[];
+  if(S.investments.find(x=>x.id===invId)){ addLog('Already active','lw'); return; }
+  const facRep=S.rep?.[def.faction]||0;
+  if(facRep<def.minRep){ addLog(`Need ${def.minRep} ${def.faction} rep`,'lw'); return; }
+  if(def.minDist){
+    const d=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(d<def.minDist){ addLog(`Need dist ${def.minDist}+`,'lw'); return; }
+  }
+  if((S.cred||0)<def.cost){ addLog(`Need ${def.cost}₵`,'lw'); return; }
+  S.cred-=def.cost;
+  S.investments.push({id:invId,active:true,lastPaid:Date.now(),totalEarned:0});
+  addLog(`◈ Investment active: ${def.name} (+${def.income}₵/${def.interval}s)`,'lp');
+  renderTopBar();
+  if(typeof renderHome==='function') renderHome();
+}
+
 // MESH v0.2 — deck.js
 // ===================
 
@@ -69,7 +90,13 @@ function buyHW(id){
   addLog(`Purchased ${h.name}`,'lg');renderTopBar();renderDeck();autoSave();
 }
 function equipHW(id){
-  if(!S.ownedHW.includes(id))return;S.hardware=id;S.integrity=Math.min(S.integrity,maxInt());
+  if(!S.ownedHW.includes(id))return;
+  // Unequip crafted deck if one is active
+  if(S.craftedDeck?.activeStats && Object.values(S.craftedDeck.activeStats).some(v=>v)){
+    S.craftedDeck.activeStats={};
+    addLog('◈ Crafted deck deactivated — hardware deck equipped','lw');
+  }
+  S.hardware=id;S.integrity=Math.min(S.integrity,maxInt());
   while(ramUsed()>ramMax()){const l=S.installed[S.installed.length-1];if(l)ejectProg(l);else break;}
   renderTopBar();renderDeck();autoSave();
 }
@@ -181,7 +208,7 @@ function showMkt(f){
 
 // CRAFTING
 // ── BLUEPRINT DISCOVERY ───────────────────────────────────────────────────
-const STARTER_BPS=['bp_f3','bp_d3','bp_k3','bp_h2','bp_d2','bp_z2','bp_oc','bp_int','bp_dc1','bp_dc2'];
+const STARTER_BPS=['bp_f3','bp_d3','bp_k3','bp_h2','bp_d2','bp_z2','bp_oc','bp_int','bp_dc1','bp_dc2','bp_sl3','bp_hm3','bp_anc3'];
 
 function blueprintsEligibleToDrop(){
   // Non-starter blueprints the player is eligible for but hasn't earned yet
@@ -230,7 +257,9 @@ function startCraft(bpId){
   const bp=BLUEPRINTS.find(x=>x.id===bpId);if(!bp)return;
   if(S.craftedBps.includes(bpId)){addLog('Already crafted — check inventory','lw');return;}
   const _cd=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
-  const _dr=Math.max(pdef(bp.result)?.minMeshDist||0,(bp.prestigeReq||0)*8);
+  // Dist check only applies if blueprint is NOT earned (starter BPs) or has explicit bp.minDist
+  const _bpEarned=STARTER_BPS.includes(bpId)||S.earnedBps.includes(bpId);
+  const _dr=_bpEarned?0:Math.max(pdef(bp.result)?.minMeshDist||0,(bp.prestigeReq||0)*8);
   if(_cd<_dr){addLog(`Requires mesh dist ${_dr} (you: ${_cd.toFixed(1)})`,'lw');return;}
   // Non-starter blueprints must be earned (dropped/rewarded) first
   if(!STARTER_BPS.includes(bpId)&&!S.earnedBps.includes(bpId)){addLog('Blueprint not yet discovered','lw');return;}

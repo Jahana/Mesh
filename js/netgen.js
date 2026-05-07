@@ -1,4 +1,4 @@
-// MESH v0.7.1 — netgen.js
+// MESH v0.7.4 — netgen.js
 // =======================
 // Net-level generation: company names, node layout for 16×16 nets
 
@@ -117,7 +117,7 @@ function availNodeTypes(meshDist){
   if(meshDist >= 3){ types.FIREWALL = 5; types.TERMINAL = 4; }
   if(meshDist >= 4){ types.VAULT = 4; types.PROXY = 4; types.ARCHIVE = 4; }
   if(meshDist >= 8){ types.COP = (types.COP||6) + 2; types.FIREWALL = (types.FIREWALL||5) + 2; }
-  // v0.7.1 new node types
+  // v0.7.4 new node types
   if(meshDist >= 3){ types.ROUTER = 4; }
   if(meshDist >= 5){ types.SENSOR = 4; types.SERVER = 3; }
   if(meshDist >= 8){ types.NEXUS = 2; types.LAB = 3; }

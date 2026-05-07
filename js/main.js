@@ -1,4 +1,4 @@
-// MESH v0.7.1 — main.js
+// MESH v0.7.4 — main.js
 // ===================
 
 let tickAccum=0,lastTs=null;
@@ -123,7 +123,12 @@ function gameTick(ts){
     if(S.trace>=_traceCap){
       const _tr=typeof charTraceResist==='function'?charTraceResist():0;
       if(Math.random()<Math.max(0.05,1-_tr/200)){
-        if(typeof addLog==='function') addLog(`◎ Trace maxed (${S.trace.toFixed(0)}% / ${_traceCap}%) — Hunter deployed!`,'lb');
+        if(typeof addLog==='function') addLog(`◎ TRACE MAXED (${S.trace.toFixed(0)}% / ${_traceCap}%) — HUNTER DEPLOYED!`,'lb');
+      // Visual flash on trace overdrive
+      const _topbar=document.getElementById('topbar');
+      if(_topbar){ _topbar.style.background='#400000'; setTimeout(()=>{_topbar.style.background='';},400); }
+      const _app=document.getElementById('app');
+      if(_app){ _app.style.boxShadow='inset 0 0 40px rgba(255,0,0,0.4)'; setTimeout(()=>{_app.style.boxShadow='';},600); }
         if(typeof spawnHunter==='function') spawnHunter();
         S.trace=Math.max(0,S.trace-30); // partial relief on spawn
       }
@@ -161,6 +166,54 @@ function gameTick(ts){
   if(S.tick%10===0&&S.running&&document.getElementById('tab-net-content')?.style.display!=='none'&&typeof renderNetMap==='function') renderNetMap();
   if(S.tick%30===0&&typeof questTick==='function') questTick();
   if(S.tick%30===0&&typeof updateGlitchOverlay==='function') updateGlitchOverlay();
+  // Passive income from IO T3+ and SERVER T3+ nodes
+  // IO T7 jump: fire when token is held and contract is now complete
+  if(S._ioJumpToken&&S.running){
+    const _blocked=S.active?.some(ct=>ct.autorunOverride?.blockFF);
+    const _contractDone=!S.active?.length||S.active.every(ct=>ct.objectives.every(o=>o.done||o.failed));
+    if(_contractDone&&!_blocked){
+      const _ffCell=S.grid?.flat().find(cl=>cl?.nodeType==='EXIT');
+      if(_ffCell){
+        S._ioJumpToken=false;
+        addLog(`⇄ IO JUMP: contract complete — teleporting to EXIT`,'lp');
+        S.actionQueue=[];
+        S.player.r=_ffCell.r; S.player.c=_ffCell.c;
+        S.player.stalled=false;
+        if(typeof queueCellAction==='function') queueCellAction(_ffCell.r,_ffCell.c);
+        if(typeof renderGrid==='function') renderGrid();
+      }
+    }
+  }
+
+  if(S.running&&S.tick%10===0){
+    let _passiveInc=0;
+    if(S._ioPassiveCred>0) _passiveInc+=S._ioPassiveCred;
+    if(S._serverTickCred>0) _passiveInc+=S._serverTickCred;
+    if(_passiveInc>0){ S.cred=(S.cred||0)+_passiveInc; if(typeof renderTopBar==='function')renderTopBar(); }
+  }
+  // ── Investment passive income ─────────────────────────────────────────
+  if(S.investments?.length){
+    const now=Date.now();
+    S.investments.forEach(inv=>{
+      const def=typeof INVESTMENTS!=='undefined'?INVESTMENTS.find(x=>x.id===inv.id):null;
+      if(!def||!inv.active) return;
+      if(now-inv.lastPaid>=def.interval*1000){
+        S.cred=(S.cred||0)+def.income;
+        inv.lastPaid=now;
+        inv.totalEarned=(inv.totalEarned||0)+def.income;
+        if(typeof renderTopBar==='function') renderTopBar();
+      }
+    });
+  }
+
+  // Phantom account (VAULT T4+)
+  if(S._phantomAccountExpiry&&S._phantomAccountExpiry>Date.now()&&S.tick%30===0){
+    const _pa=S._phantomAccountRate||10; S.cred=(S.cred||0)+_pa;
+    if(typeof renderTopBar==='function')renderTopBar();
+  } else if(S._phantomAccountExpiry&&S._phantomAccountExpiry<=Date.now()){
+    S._phantomAccountExpiry=null; S._phantomAccountRate=0;
+    addLog(`◆ Phantom account expired`,'lw');
+  }
   if(S.tick%30===0&&typeof applyTraitPassiveDecay==='function') applyTraitPassiveDecay();
   if(S.tick%300===0) tickIdleIncome();
   if(S.tick%600===0&&typeof checkAscensionStory==='function') checkAscensionStory();

@@ -6,9 +6,12 @@ function canRunOp(opId){
   if(_runLocked)return{ok:false,reason:'Run in progress'};
   if(S.cred<op.cost)return{ok:false,reason:`Need ${op.cost}₵`};
   if(op.repReq>0){
-    // Check any faction rep meets requirement
     const maxRep=Math.max(...Object.values(S.rep));
     if(maxRep<op.repReq)return{ok:false,reason:`Need ${op.repReq} rep`};
+  }
+  if(op.minDist>0){
+    const _opDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(_opDist<op.minDist)return{ok:false,reason:`Need dist ${op.minDist}+`};
   }
   // Only one of each type at a time
   if((S.ops.activeOps||[]).some(a=>a.opId===opId&&!a.done))return{ok:false,reason:'Already running'};
@@ -43,6 +46,10 @@ function applyOpEffect(opId){
     case 'net_trace':     nr.traceBonus=(nr.traceBonus||0)+30; break;
     case 'net_alert':     nr.alertSuppress=true; break;
     case 'net_backdoor':  nr.backdoorPlant=true; break;
+    case 'sig_freq':      nr.freqMask=true; break;
+    case 'sig_gov':       nr.govClearance=true; break;
+    case 'sig_cred':      nr.credBoost=(nr.credBoost||0)+0.20; break;
+    case 'sig_trace':     nr.glitchTraceMask=true; break;
     case 'maint_int':
       if(S.permIntLoss>0){S.permIntLoss--;addLog('◫ Integrity restored +1','lg');}
       else addLog('◫ No integrity loss to patch','lw');
@@ -109,6 +116,27 @@ function applyNextRunOps(){
     S._alertSuppressOne=true;
     addLog('⚠ Alert Suppress: first raise ignored','lg');
   }
+  if(nr.freqMask){
+    S._freqMaskActive=true;
+    addLog('◌ Freq Mask: −2 ICE STR in glitch zone this run','lg');
+  }
+  if(nr.govClearance){
+    // Boost rep with current zone's dominant government
+    const _gcDist=typeof meshDistanceCurrent==='function'?meshDistanceCurrent():0;
+    if(_gcDist>=16&&typeof getDistGovernments==='function'){
+      const _govIdxs=getDistGovernments(Math.floor(_gcDist));
+      _govIdxs.forEach(idx=>{ if(typeof addGovRep==='function') addGovRep(idx,50); });
+      addLog(`◎ Gov Clearance: +50 rep with zone government`,'lg');
+    }
+  }
+  if(nr.credBoost>0){
+    S._credBoostRun=(nr.credBoost||0);
+    addLog(`⊛ Signal Tap: +${Math.round(nr.credBoost*100)}% contract cred this run`,'lg');
+  }
+  if(nr.glitchTraceMask){
+    S._glitchTraceMask=true;
+    addLog('⬡ Mesh Anchor: glitch trace penalty −50% this run','lg');
+  }
   if(nr.backdoorPlant){
     // Find random interior non-entry/exit cell
     const candidates=[];
@@ -123,7 +151,7 @@ function applyNextRunOps(){
     }
   }
   // Reset for next run
-  S.ops.nextRun={intelNodes:false,intelIce:false,intelTraps:false,copBribed:false,traceBonus:0,alertSuppress:false,backdoorPlant:false};
+  S.ops.nextRun={intelNodes:false,intelIce:false,intelTraps:false,copBribed:false,traceBonus:0,alertSuppress:false,backdoorPlant:false,freqMask:false,govClearance:false,credBoost:0,glitchTraceMask:false};
 }
 
 function autoMaintenance(){
